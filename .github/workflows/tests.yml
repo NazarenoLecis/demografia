@@ -3,6 +3,7 @@ name: tests
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -12,5 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e .[dev]
+      - run: pip install -e '.[dev]'
+      - run: ruff check .
+      - run: python -m compileall -q demografia scripts
       - run: pytest
