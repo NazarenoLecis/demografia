@@ -1,125 +1,162 @@
 # Demografia italiana
 
-Repository per analizzare struttura, evoluzione e proiezioni della popolazione italiana con confronti estesi a tutti i paesi dell'Unione europea e ai 38 membri OECD.
+Repository per analizzare struttura, evoluzione e proiezioni della popolazione italiana, con confronti estesi a tutti i paesi dell'Unione europea e dell'OECD.
 
-Il progetto copre:
+La pipeline completa usa direttamente le fonti ufficiali:
 
-- popolazione per età e sesso;
-- piramidi demografiche storiche, confronti tra anni e animazioni;
+- ISTAT per popolazione, nascite, decessi, bilancio demografico, migrazioni interne e internazionali, popolazione straniera, territorio e proiezioni italiane;
+- INPS per pensionati, pensioni, contribuenti, assicurati e flussi di pensionamento;
+- Ragioneria Generale dello Stato e OpenBDAP per le proiezioni di medio-lungo periodo su pensioni, sanità, assistenza e altre voci collegate all'invecchiamento;
+- Eurostat per dati demografici armonizzati e proiezioni dei paesi UE;
+- UN World Population Prospects per serie per età e sesso e proiezioni dei paesi OECD extra-UE;
+- World Bank WDI per il pannello sintetico di indicatori comparabili UE-OECD.
+
+## Analisi coperte
+
+- popolazione per singolo anno di età e sesso;
+- piramidi demografiche storiche e proiettate;
 - evoluzione delle coorti;
-- popolazione totale e sue componenti;
-- fertilità, natalità, mortalità e speranza di vita;
-- dipendenza demografica e rapporti di sostegno;
-- distribuzione territoriale;
-- immigrazione, emigrazione, cittadinanza e paese di nascita;
-- profili per età e sesso dei migranti;
-- predisposizione per titolo di studio, occupazione e professione tramite dati LFS e censuari;
-- proiezioni per età e sesso fino al 2100 quando disponibili;
-- confronto Italia-UE27-OECD38.
-
-## Fonti
-
-- Eurostat per popolazione UE per età e sesso, fertilità, bilancio demografico, migrazioni ed EUROPOP.
-- World Bank WDI per un pannello uniforme sull'unione dei paesi UE27 e OECD38.
-- UN World Population Prospects 2024 per piramidi e proiezioni dei paesi OECD extraeuropei.
-- ISTAT SDMX per il dettaglio italiano nazionale e territoriale. Il client generico è incluso; i dataflow saranno bloccati nel catalogo dopo la verifica dei singoli dataset.
-
-Le fonti e lo stato di implementazione sono in `metadata/source_catalog.csv`.
+- fasce di età, età media e mediana;
+- fertilità, natalità, decessi e saldo naturale;
+- immigrazione, emigrazione e saldo migratorio;
+- migrazioni interne con saldi territoriali e matrici origine-destinazione;
+- residenti per cittadinanza e paese di nascita;
+- struttura territoriale regionale, provinciale e comunale;
+- rapporti di dipendenza demografica;
+- pensionati, pensioni, contribuenti e assicurati INPS;
+- rapporto tra contribuenti, pensionati e popolazione anziana;
+- proiezioni RGS della spesa pensionistica, sanitaria e assistenziale;
+- confronto Italia-UE27-OECD38;
+- scenari e diverse edizioni delle proiezioni;
+- controlli di qualità e copertura delle fonti.
 
 ## Installazione
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
+pip install -e '.[dev]'
 ```
 
-## Esecuzione
+Su Windows:
 
-Pipeline UE e OECD:
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+## Pipeline completa
 
 ```bash
-python scripts/run_pipeline.py --start-year 1960 --end-year 2026 --projection-end 2100
+python scripts/run_official_pipeline.py \
+  --start-year 1960 \
+  --end-year 2026 \
+  --projection-end 2100 \
+  --include-migration \
+  --auto-wpp
 ```
 
-Con i dataset migratori Eurostat:
+Il comando:
+
+1. esegue la pipeline Eurostat, OECD e WPP;
+2. interroga il catalogo SDMX ISTAT e assegna i dataflow ai blocchi demografici;
+3. scarica e normalizza i dataset ISTAT selezionati;
+4. interroga il catalogo ufficiale INPS e seleziona i dataset demografico-previdenziali;
+5. interroga OpenBDAP/RGS per le proiezioni di medio-lungo periodo;
+6. costruisce le tabelle finali e il pannello integrato italiano;
+7. produce report di copertura, qualità e stato delle fonti.
+
+Per interrompere l'esecuzione quando una fonte obbligatoria non viene acquisita:
 
 ```bash
-python scripts/run_pipeline.py --include-migration
+python scripts/run_official_pipeline.py --strict
 ```
 
-Con piramidi e proiezioni per tutti i paesi OECD tramite il file ufficiale WPP 2024:
+Quando il catalogo ISTAT restituisce più dataflow con lo stesso punteggio, la pipeline usa il primo candidato ordinato e registra l'ambiguità. Un dataflow può essere fissato esplicitamente:
 
 ```bash
-python scripts/run_pipeline.py --wpp-age-sex input/WPP2024_age_sex.csv.gz --wpp-scale 1000
+python scripts/run_official_pipeline.py \
+  --istat-override population_age_sex=DATAFLOW_ID \
+  --istat-override internal_migration=DATAFLOW_ID
 ```
 
-I file WPP standard riportano normalmente la popolazione in migliaia. `--wpp-scale 1000` converte i valori in persone; usare `--wpp-scale 1` per file già espressi in unità.
-
-Per generare anche l'animazione storica italiana:
+## Pipeline internazionale più leggera
 
 ```bash
-python scripts/run_pipeline.py --make-animation
+python scripts/run_pipeline.py \
+  --start-year 1960 \
+  --end-year 2026 \
+  --projection-end 2100 \
+  --include-migration \
+  --auto-wpp
 ```
 
-Per individuare i dataflow ISTAT relativi a popolazione, migrazioni, nascite e proiezioni:
-
-```bash
-python scripts/discover_istat_dataflows.py
-```
-
-Dopo avere identificato il dataflow della popolazione per territorio, età e sesso:
-
-```bash
-python scripts/run_pipeline.py --istat-population-dataflow <DATAFLOW_ID> --istat-key all
-```
-
-Controllo rapido degli endpoint:
+## Verifica delle fonti
 
 ```bash
 python scripts/check_sources.py
+python scripts/check_official_sources.py
 ```
 
-## Output
+## Test
 
-La pipeline produce sia Parquet sia CSV.
+```bash
+ruff check .
+python -m compileall -q demografia scripts
+pytest
+```
+
+## Output principali
 
 ```text
-output/data/raw/
-  eurostat_population_age_sex.*
-  eurostat_population_projections.*
-  eurostat_fertility.*
-  eurostat_demographic_balance.*
-  eurostat_immigration_profile.*
-  eurostat_emigration_profile.*
-  eurostat_population_by_citizenship.*
-  eurostat_population_by_birth_country.*
-
 output/data/final/
   population_age_sex_observed_projected.*
   age_structure_indicators.*
-  international_demographic_indicators.*
-  oecd_demographic_indicators.*
-  coverage_report.*
+  fertility_indicators.*
+  demographic_balance.*
+  immigration_profile.*
+  emigration_profile.*
+  migration_summary.*
+  population_by_citizenship.*
+  population_by_country_of_birth.*
+  projection_inventory.*
+
+  istat_demographic_dataflows.*
   italy_population_age_sex_territorial.*
   italy_territorial_age_structure.*
+  italy_births.*
+  italy_deaths.*
+  italy_demographic_balance.*
+  italy_internal_migration_flows.*
+  italy_internal_migration_balances.*
+  italy_internal_migration_profiles.*
+  italy_internal_migration_matrix_<anno>.csv
+  italy_population_projections.*
 
-output/charts/
-  piramide_italia_<anno>.png
-  coorti_italia.png
-  piramide_italia_storica.gif
+  inps_catalog.*
+  inps_demographic_datasets.*
+  inps_demographic_observations.*
+  inps_support_indicators.*
+
+  rgs_projection_catalog.*
+  rgs_long_term_projections.*
+  rgs_long_term_projection_panel.*
+
+  italy_demographic_pension_fiscal_panel.*
+  official_source_status.*
+  official_quality_report.*
+  quality_report.*
 ```
 
-## Struttura analitica
+## Criteri metodologici
 
-`population_age_sex_observed_projected` è la tabella centrale. Mantiene distinti dati osservati e proiettati, fonte e scenario. Da questa tabella vengono calcolati piramidi, età media e mediana, fasce di età, tassi di dipendenza e rapporti di sostegno.
+Le persone e i trattamenti pensionistici restano separati. Un pensionato può ricevere più pensioni.
 
-Il pannello internazionale scarica l'unione dei 27 Stati membri UE e dei 38 membri OECD. I benchmark UE27 e OECD38 vengono calcolati sui rispettivi insiemi completi. `coverage_report` segnala paesi o dimensioni mancanti senza sostituire dati assenti con valori stimati.
+Cittadinanza, paese di nascita, precedente residenza e paese di destinazione restano dimensioni distinte.
 
-## Limiti da mantenere espliciti
+I dati osservati e le proiezioni restano separati. Ogni proiezione conserva fonte, scenario ed edizione quando disponibili.
 
-Le proiezioni dipendono dalle ipotesi su fertilità, mortalità e migrazione. Le diverse edizioni non devono essere sovrascritte.
+I rapporti demografici usano la popolazione per età. I rapporti previdenziali usano contribuenti, assicurati, pensionati e pensioni INPS. Il pannello integrato mantiene visibili entrambi i numeratori e denominatori.
 
-Cittadinanza e paese di nascita misurano popolazioni diverse. I dati anagrafici e le stime campionarie su istruzione o lavoro restano separati.
-
-I rapporti di dipendenza presenti nel repository sono demografici. Un rapporto economico tra occupati e persone sostenute richiede dati aggiuntivi sul mercato del lavoro e sulle pensioni.
+La disponibilità dei dati non viene trattata come un limite metodologico. `official_source_status` distingue un dato realmente assente da un problema operativo di download, formato, mapping o variazione dell'endpoint.

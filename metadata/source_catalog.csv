@@ -1,14 +1,26 @@
 source,dataset,coverage,dimensions,role,status,notes
-Eurostat,demo_pjan,EU27 and European OECD countries,year age sex country,Historical population by age and sex,implemented,Primary source for EU pyramids
-Eurostat,proj_23np,EU27 and European countries,year age sex country scenario,EUROPOP projections,implemented,Baseline selected when available
-Eurostat,demo_frate,EU27,year country fertility indicator,Fertility and mean age at childbirth,implemented,Raw indicators retained with labels
-Eurostat,demo_gind,EU27,year country demographic component,Population balance,implemented,Births deaths natural balance and net migration
-Eurostat,migr_imm5prv,EU27,year age sex citizenship previous residence,Immigration profile,implemented optional,Large extraction enabled with --include-migration
-Eurostat,migr_emi4ctb,EU27,year age sex citizenship destination,Emigration profile,implemented optional,Large extraction enabled with --include-migration
-Eurostat,migr_pop1ctz,EU27,year age sex citizenship,Migrant stock by citizenship,implemented optional,Citizenship kept separate from country of birth
-Eurostat,migr_pop3ctb,EU27,year age sex country of birth,Migrant stock by country of birth,implemented optional,Country of birth kept separate from citizenship
+ISTAT,SDMX demographic registry,Italy national regional provincial municipal,dataflow metadata,Automatic source mapping,implemented,Registry is rebuilt from the official ISTAT SDMX catalogue
+ISTAT,population_age_sex,Italy national regional provincial municipal,year age sex territory,Historical population and pyramids,implemented automatic,Dataflow selected by the ISTAT role registry
+ISTAT,demographic_balance,Italy national regional provincial municipal,year territory demographic component,Population balance,implemented automatic,Births deaths natural balance and migration
+ISTAT,births,Italy national regional provincial municipal,year territory mother age order citizenship,Births and fertility profiles,implemented automatic,Dataflow selected by the ISTAT role registry
+ISTAT,deaths,Italy national regional provincial municipal,year age sex territory,Deaths and mortality profiles,implemented automatic,Dataflow selected by the ISTAT role registry
+ISTAT,internal_migration,Italy origin destination territories,year origin destination age sex,Internal migration flows and matrices,implemented automatic,Produces flows balances profiles and origin destination matrices
+ISTAT,international_migration,Italy national and territorial,year age sex citizenship origin destination,International migration profiles,implemented automatic,Kept separate from internal migration
+ISTAT,foreign_population,Italy national and territorial,year age sex citizenship country of birth,Foreign and foreign-born population,implemented automatic,Citizenship and country of birth remain distinct
+ISTAT,population_projections,Italy national regional provincial municipal,year age sex territory scenario quantile,Italian population projections,implemented automatic,Scenarios and quantiles retained when available
+INPS,current_package_list_with_resources,Italy,dataset metadata resources formats,Daily official Open Data catalogue,implemented,Legacy CKAN-compatible API and new INPS Open Data catalogue
+INPS,pensioners and pensions,Italy national and territorial,year age sex management category persons pensions amount,Pensioners and pension treatments,implemented automatic,Persons and treatments are never merged
+INPS,contributors and insured workers,Italy national and territorial,year age sex management category persons contributions,Contributors and active insured population,implemented automatic,Used for previdential support ratios
+INPS,retirement flows,Italy national and territorial,year age sex management category,New retirement flows,implemented automatic,Datasets selected from the official catalogue
+RGS,OpenBDAP CKAN catalogue,Italy,dataset metadata resources,Discovery of RGS datasets,implemented,Official OpenBDAP package search and resource download
+RGS,medium and long-term projections,Italy,year scenario vintage indicator unit,Pension health and long-term care projections,implemented automatic,Resources selected from OpenBDAP searches and normalized
+Eurostat,demo_pjan,EU27 and European OECD countries,year age sex country,Historical population by age and sex,implemented,Primary harmonised source for EU pyramids
+Eurostat,proj_23np,EU27 and European countries,year age sex country scenario,EUROPOP projections,implemented,All scenarios retained unless explicitly filtered
+Eurostat,demo_frate,EU27,year country fertility indicator,Fertility and mean age at childbirth,implemented,Normalized final table
+Eurostat,demo_gind,EU27,year country demographic component,Population balance,implemented,Normalized long and wide final tables
+Eurostat,migr_imm5prv,EU27,year age sex citizenship previous residence,Immigration profile,implemented,Enabled by migration option
+Eurostat,migr_emi4ctb,EU27,year age sex citizenship destination,Emigration profile,implemented,Enabled by migration option
+Eurostat,migr_pop1ctz,EU27,year age sex citizenship,Migrant stock by citizenship,implemented,Citizenship kept separate from country of birth
+Eurostat,migr_pop3ctb,EU27,year age sex country of birth,Migrant stock by country of birth,implemented,Country of birth kept separate from citizenship
 World Bank,WDI,EU27 and OECD38,year country indicator,Harmonised international comparison panel,implemented,Covers the union of all EU27 and OECD38 members
-UN DESA,WPP 2024,world,year age sex country scenario,OECD pyramids and projections,implemented importer,Pass official CSV or ZIP with --wpp-age-sex
-ISTAT,SDMX dataflows,Italy national regional provincial municipal,year age sex territory citizenship birth country,Italian territorial detail,generic client ready,Dataflow identifiers must be locked after source discovery
-Eurostat Labour Force Survey,to map,EU27,age sex citizenship country of birth education employment,Migrant education and labour profile,planned mapping,Keep survey estimates separate from population register counts
-ISTAT,discovery catalog,Italy,SDMX dataflow metadata,Automatic identification of demographic dataflows,implemented,Run scripts/discover_istat_dataflows.py
+UN DESA,WPP 2024,world,year age sex country scenario,OECD extra-EU pyramids and projections,implemented automatic,Official WPP file is downloaded automatically

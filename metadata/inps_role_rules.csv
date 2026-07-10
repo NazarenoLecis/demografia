@@ -1,0 +1,6 @@
+role,keywords,output
+pensioners,pensionati|pensionato|casellario pensionati,inps_demographic_observations
+pensions,pensioni|trattamenti pensionistici,inps_demographic_observations
+contributors,contribuenti|contributi|posizioni contributive,inps_demographic_observations
+insured_workers,assicurati|iscritti|lavoratori,inps_demographic_observations
+retirement_flows,nuove pensioni|decorrenze|pensionamenti,inps_demographic_observations
