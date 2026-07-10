@@ -1,0 +1,19 @@
+indicator,formula,minimum_dimensions
+population_total,sum population,age sex country year
+mean_age,weighted mean of age,population by age
+median_age,weighted median of age,population by age
+share_0_14,population 0-14 / total,population by age
+share_15_64,population 15-64 / total,population by age
+share_65_plus,population 65+ / total,population by age
+share_80_plus,population 80+ / total,population by age
+dependency_youth,population 0-14 / population 15-64,population by age
+dependency_old,population 65+ / population 15-64,population by age
+dependency_total,(population 0-14 + population 65+) / population 15-64,population by age
+support_ratio_15_64_per_65_plus,population 15-64 / population 65+,population by age
+support_ratio_20_64_per_65_plus,population 20-64 / population 65+,population by age
+support_ratio_25_64_per_65_plus,population 25-64 / population 65+,population by age
+sex_ratio_male_per_100_female,male population / female population,age sex country year
+women_15_49,sum women aged 15-49,age sex country year
+fertility_total,official total fertility rate,country year
+natural_balance,births - deaths,country year
+net_migration,immigration - emigration,country year

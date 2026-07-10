@@ -1,0 +1,14 @@
+source,dataset,coverage,dimensions,role,status,notes
+Eurostat,demo_pjan,EU27 and European OECD countries,year age sex country,Historical population by age and sex,implemented,Primary source for EU pyramids
+Eurostat,proj_23np,EU27 and European countries,year age sex country scenario,EUROPOP projections,implemented,Baseline selected when available
+Eurostat,demo_frate,EU27,year country fertility indicator,Fertility and mean age at childbirth,implemented,Raw indicators retained with labels
+Eurostat,demo_gind,EU27,year country demographic component,Population balance,implemented,Births deaths natural balance and net migration
+Eurostat,migr_imm5prv,EU27,year age sex citizenship previous residence,Immigration profile,implemented optional,Large extraction enabled with --include-migration
+Eurostat,migr_emi4ctb,EU27,year age sex citizenship destination,Emigration profile,implemented optional,Large extraction enabled with --include-migration
+Eurostat,migr_pop1ctz,EU27,year age sex citizenship,Migrant stock by citizenship,implemented optional,Citizenship kept separate from country of birth
+Eurostat,migr_pop3ctb,EU27,year age sex country of birth,Migrant stock by country of birth,implemented optional,Country of birth kept separate from citizenship
+World Bank,WDI,OECD38,year country indicator,Harmonised OECD comparison panel,implemented,Covers all 38 OECD members
+UN DESA,WPP 2024,world,year age sex country scenario,OECD pyramids and projections,implemented importer,Pass official CSV or ZIP with --wpp-age-sex
+ISTAT,SDMX dataflows,Italy national regional provincial municipal,year age sex territory citizenship birth country,Italian territorial detail,generic client ready,Dataflow identifiers must be locked after source discovery
+Eurostat Labour Force Survey,to map,EU27,age sex citizenship country of birth education employment,Migrant education and labour profile,planned mapping,Keep survey estimates separate from population register counts
+ISTAT,discovery catalog,Italy,SDMX dataflow metadata,Automatic identification of demographic dataflows,implemented,Run scripts/discover_istat_dataflows.py
