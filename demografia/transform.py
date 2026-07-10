@@ -13,8 +13,16 @@ def parse_age_code(value: object) -> tuple[int, int] | None:
     text = str(value).strip().upper()
     if text in {"TOTAL", "UNK", "UNKNOWN", "Y_UNKNOWN"}:
         return None
+    if text in {"Y_LT1", "LT1", "UNDER 1", "LESS THAN 1"}:
+        return 0, 0
     if text in {"Y_OPEN", "Y_GE100", "Y100_MAX", "100+"}:
         return 100, 120
+    if text.startswith("Y_GE"):
+        numbers = [int(number) for number in re.findall(r"\d+", text)]
+        return (numbers[0], 120) if numbers else None
+    if text.startswith("Y_LE"):
+        numbers = [int(number) for number in re.findall(r"\d+", text)]
+        return (0, numbers[0]) if numbers else None
     if text.startswith("Y"):
         text = text[1:]
     numbers = [int(number) for number in re.findall(r"\d+", text)]
