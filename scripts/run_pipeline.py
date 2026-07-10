@@ -20,7 +20,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--projection-end", type=int, default=2100)
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--include-migration", action="store_true")
+    parser.add_argument("--auto-wpp", action="store_true")
     parser.add_argument("--wpp-age-sex", type=Path)
+    parser.add_argument("--wpp-url", help="URL ufficiale WPP esplicito")
     parser.add_argument(
         "--wpp-scale",
         type=float,
@@ -55,7 +57,9 @@ if __name__ == "__main__":
             projection_end=args.projection_end,
             refresh=args.refresh,
             include_migration=args.include_migration,
+            auto_wpp=args.auto_wpp,
             wpp_age_sex=args.wpp_age_sex,
+            wpp_url=args.wpp_url,
             wpp_scale=args.wpp_scale,
             istat_population_dataflow=args.istat_population_dataflow,
             istat_key=args.istat_key,
