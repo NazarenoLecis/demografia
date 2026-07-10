@@ -6,6 +6,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
+from zipfile import ZipFile
 
 import pandas as pd
 
@@ -14,6 +15,7 @@ from demografia.http import SESSION, download_file, get_json
 INPS_API = "https://serviziweb2.inps.it/odapi"
 INPS_OPEN_DATA = "https://opendata.inps.it/opendata"
 INPS_DATA_BROWSER = "https://opendata.inps.it/databrowser/"
+SUPPORTED_SUFFIXES = (".csv", ".txt", ".xlsx", ".xls", ".json", ".xml")
 
 
 def _payload_result(payload: Any) -> Any:
@@ -35,6 +37,65 @@ def _secure_inps_url(url: str) -> str:
     if url.startswith("http://www.inps.it/"):
         return "https://www.inps.it/" + url.removeprefix("http://www.inps.it/")
     return url
+
+
+def _resource_filename(item: dict[str, Any], prefix: str = "inps") -> str:
+    url = str(item.get("url", ""))
+    name = Path(urlparse(url).path).name or f"{prefix}_{item.get('dataset_id', 'dataset')}"
+    resource_format = str(item.get("format", "")).lower().strip().lstrip(".")
+    if not Path(name).suffix and resource_format:
+        name = f"{name}.{resource_format}"
+    return name
+
+
+def _read_csv_bytes(raw: bytes, source: str) -> pd.DataFrame:
+    errors: list[Exception] = []
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            text = raw.decode(encoding)
+            return pd.read_csv(StringIO(text), sep=None, engine="python")
+        except (UnicodeDecodeError, pd.errors.ParserError) as exc:
+            errors.append(exc)
+    raise ValueError(f"CSV INPS non leggibile: {source}") from errors[-1]
+
+
+def _read_json_bytes(raw: bytes) -> pd.DataFrame:
+    payload = json.loads(raw.decode("utf-8-sig"))
+    result = _payload_result(payload)
+    if isinstance(result, list):
+        return pd.json_normalize(result)
+    if isinstance(result, dict):
+        for key in ("records", "data", "items", "result"):
+            if isinstance(result.get(key), list):
+                return pd.json_normalize(result[key])
+        return pd.json_normalize(result)
+    return pd.DataFrame()
+
+
+def _read_bytes(raw: bytes, suffix: str, source: str) -> pd.DataFrame:
+    suffix = suffix.lower()
+    if suffix in {".csv", ".txt"}:
+        return _read_csv_bytes(raw, source)
+    if suffix in {".xlsx", ".xls"}:
+        return pd.read_excel(BytesIO(raw))
+    if suffix == ".json":
+        return _read_json_bytes(raw)
+    if suffix == ".xml":
+        return pd.read_xml(BytesIO(raw))
+    raise ValueError(f"Formato risorsa INPS non supportato: {suffix or source}")
+
+
+def _read_zip_bytes(raw: bytes, source: str) -> pd.DataFrame:
+    with ZipFile(BytesIO(raw)) as archive:
+        members = [
+            member
+            for member in archive.namelist()
+            if not member.endswith("/") and Path(member).suffix.lower() in SUPPORTED_SUFFIXES
+        ]
+        if not members:
+            raise ValueError(f"Archivio INPS privo di file supportati: {source}")
+        member = sorted(members, key=lambda value: SUPPORTED_SUFFIXES.index(Path(value).suffix.lower()))[0]
+        return _read_bytes(archive.read(member), Path(member).suffix.lower(), f"{source}:{member}")
 
 
 @dataclass
@@ -153,7 +214,7 @@ class InpsClient:
     @staticmethod
     def select_resources(
         matches: pd.DataFrame,
-        formats: tuple[str, ...] = ("csv", "json", "xlsx", "xls", "xml"),
+        formats: tuple[str, ...] = ("csv", "json", "xlsx", "xls", "xml", "zip"),
         one_per_dataset: bool = True,
     ) -> pd.DataFrame:
         if matches.empty:
@@ -180,10 +241,7 @@ class InpsClient:
         if not original_url:
             raise ValueError("Risorsa INPS priva di URL")
         secure_url = _secure_inps_url(original_url)
-        name = Path(urlparse(original_url).path).name or (
-            f"inps_{item.get('dataset_id', 'dataset')}.{item.get('format', 'dat')}"
-        )
-        target = target_dir / name
+        target = target_dir / _resource_filename(item)
         try:
             return download_file(secure_url, target, refresh=self.refresh, timeout=900)
         except Exception:
@@ -194,49 +252,16 @@ class InpsClient:
 
 def read_inps_resource(path: str | Path) -> pd.DataFrame:
     path = Path(path)
-    suffixes = "".join(path.suffixes).lower()
-    if suffixes.endswith(".csv") or suffixes.endswith(".txt"):
-        raw = path.read_bytes()
-        for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-            try:
-                text = raw.decode(encoding)
-                return pd.read_csv(StringIO(text), sep=None, engine="python")
-            except (UnicodeDecodeError, pd.errors.ParserError):
-                continue
-        raise ValueError(f"CSV INPS non leggibile: {path}")
-    if suffixes.endswith((".xlsx", ".xls")):
-        return pd.read_excel(path)
-    if suffixes.endswith(".json"):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        result = _payload_result(payload)
-        if isinstance(result, list):
-            return pd.json_normalize(result)
-        if isinstance(result, dict):
-            for key in ("records", "data", "items", "result"):
-                if isinstance(result.get(key), list):
-                    return pd.json_normalize(result[key])
-            return pd.json_normalize(result)
-    if suffixes.endswith(".xml"):
-        return pd.read_xml(path)
-    raise ValueError(f"Formato risorsa INPS non supportato: {path.suffix}")
+    raw = path.read_bytes()
+    if path.suffix.lower() == ".zip":
+        return _read_zip_bytes(raw, str(path))
+    return _read_bytes(raw, path.suffix.lower(), str(path))
 
 
 def read_inps_url(url: str, timeout: int = 300) -> pd.DataFrame:
     response = SESSION.get(_secure_inps_url(url), timeout=timeout)
     response.raise_for_status()
     suffix = Path(urlparse(url).path).suffix.lower()
-    if suffix == ".csv":
-        for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-            try:
-                return pd.read_csv(StringIO(response.content.decode(encoding)), sep=None, engine="python")
-            except (UnicodeDecodeError, pd.errors.ParserError):
-                continue
-    if suffix in {".xlsx", ".xls"}:
-        return pd.read_excel(BytesIO(response.content))
-    if suffix == ".json":
-        payload = response.json()
-        result = _payload_result(payload)
-        return pd.json_normalize(result)
-    if suffix == ".xml":
-        return pd.read_xml(BytesIO(response.content))
-    raise ValueError(f"Formato URL INPS non supportato: {suffix}")
+    if suffix == ".zip":
+        return _read_zip_bytes(response.content, url)
+    return _read_bytes(response.content, suffix, url)

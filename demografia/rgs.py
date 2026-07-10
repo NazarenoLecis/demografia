@@ -8,6 +8,13 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+def projection_vintage_year(value: object) -> int | None:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if parsed is None or pd.isna(parsed):
+        return None
+    return int(parsed.year)
+
+
 RGS_INDICATOR_RULES: dict[str, tuple[str, ...]] = {
     "pension_expenditure_gdp": ("spesa pension", "pil"),
     "health_expenditure_gdp": ("spesa sanit", "pil"),

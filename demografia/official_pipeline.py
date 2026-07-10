@@ -20,7 +20,7 @@ from demografia.istat_official import normalize_istat_indicator_table, normalize
 from demografia.istat_registry import ROLE_RULES, build_istat_registry
 from demografia.official_quality import build_official_quality_report
 from demografia.pipeline import PipelineOptions, run_pipeline
-from demografia.rgs import build_rgs_projection_panel, normalize_rgs_projection
+from demografia.rgs import build_rgs_projection_panel, normalize_rgs_projection, projection_vintage_year
 from demografia.sources.inps import InpsClient, read_inps_resource
 from demografia.sources.istat import IstatClient
 from demografia.sources.rgs import RgsClient, read_rgs_resource
@@ -47,7 +47,6 @@ class OfficialPipelineOptions:
         "long term care",
     )
     rgs_resources_per_query: int = 2
-    download_raw_resources: bool = True
 
 
 def _save(frame: pd.DataFrame, path: Path) -> Path:
@@ -94,6 +93,8 @@ def _select_istat_dataflow(
     selected = selected.sort_values(["score", "version", "dataflow_id"], ascending=[False, False, True])
     row = selected.iloc[0]
     return str(row["dataflow_id"]), str(row["name"]), bool(row["ambiguous"])
+
+
 
 
 def _run_istat(options: OfficialPipelineOptions, status_rows: list[dict[str, Any]]) -> dict[str, Path]:
@@ -182,6 +183,11 @@ def _run_inps(options: OfficialPipelineOptions, status_rows: list[dict[str, Any]
     matches = discover_inps_roles(catalog, max_per_role=options.inps_datasets_per_role)
     matches = client.select_resources(matches, one_per_dataset=True)
     outputs["inps_role_catalog"] = _save(matches, FINAL_DIR / "inps_demographic_datasets.parquet")
+    if matches.empty:
+        message = "Nessuna risorsa demografico-previdenziale selezionata dal catalogo INPS"
+        _status(status_rows, "INPS", "catalog", "error", message)
+        if options.strict:
+            raise LookupError(message)
 
     observations: list[pd.DataFrame] = []
     for row in matches.to_dict("records"):
@@ -228,6 +234,11 @@ def _run_rgs(options: OfficialPipelineOptions, status_rows: list[dict[str, Any]]
         selected,
         FINAL_DIR / "rgs_selected_projection_resources.parquet",
     )
+    if selected.empty:
+        message = "Nessuna risorsa di proiezione selezionata dal catalogo OpenBDAP/RGS"
+        _status(status_rows, "RGS", "catalog", "error", message)
+        if options.strict:
+            raise LookupError(message)
 
     projections: list[pd.DataFrame] = []
     for row in selected.to_dict("records"):
@@ -239,7 +250,7 @@ def _run_rgs(options: OfficialPipelineOptions, status_rows: list[dict[str, Any]]
                 frame,
                 dataset=str(row.get("title") or row.get("name") or package_id),
                 source_url=str(row.get("url", "")),
-                vintage=(pd.to_datetime(row.get("metadata_modified"), errors="coerce").year),
+                vintage=projection_vintage_year(row.get("metadata_modified")),
             )
             projections.append(normalized)
             _status(

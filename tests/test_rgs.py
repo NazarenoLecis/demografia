@@ -32,3 +32,22 @@ def test_rgs_backtest():
     observed = pd.DataFrame({"year": [2025], "value": [15.5]})
     result = backtest_rgs_projections(projections, observed, "pension_expenditure_gdp")
     assert result.iloc[0]["error"] == 0.5
+
+
+def test_read_rgs_zip_resource(tmp_path):
+    from zipfile import ZipFile
+
+    from demografia.sources.rgs import read_rgs_resource
+
+    archive_path = tmp_path / "rgs.zip"
+    with ZipFile(archive_path, "w") as archive:
+        archive.writestr("projection.csv", "Indicatore,2025\nSpesa pensionistica in rapporto al PIL,15.5\n")
+    result = read_rgs_resource(archive_path)
+    assert result.iloc[0]["2025"] == 15.5
+
+
+def test_missing_rgs_metadata_year_is_none():
+    from demografia.rgs import projection_vintage_year
+
+    assert projection_vintage_year(None) is None
+    assert projection_vintage_year("2025-04-01") == 2025
