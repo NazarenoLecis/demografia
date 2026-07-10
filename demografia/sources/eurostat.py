@@ -32,10 +32,17 @@ class EurostatClient:
     ) -> pd.DataFrame:
         filters = dict(filters or {})
         geos = filters.pop("geo", None)
-        geo_values = list(geos) if geos is not None and not isinstance(geos, str) else [geos] if geos else [None]
+        geo_values = (
+            list(geos)
+            if geos is not None and not isinstance(geos, str)
+            else [geos]
+            if geos
+            else [None]
+        )
         frames: list[pd.DataFrame] = []
 
-        for geo_chunk in _chunks([geo for geo in geo_values if geo is not None], self.chunk_size) if geos else [[None]]:
+        chunks = _chunks([geo for geo in geo_values if geo is not None], self.chunk_size) if geos else [[None]]
+        for geo_chunk in chunks:
             params: list[tuple[str, Any]] = [("lang", "en")]
             if start_year is not None:
                 params.append(("sinceTimePeriod", start_year))
@@ -81,34 +88,38 @@ class EurostatClient:
         geos: Iterable[str] = EU27_ISO2,
         start_year: int = 2022,
         end_year: int = 2100,
+        scenario: str | None = None,
     ) -> pd.DataFrame:
-        dataset = EUROSTAT_DATASETS["projections"]
-        try:
-            frame = self.fetch(
-                dataset,
-                filters={"geo": tuple(geos), "sex": ("M", "F"), "unit": "NR", "projection": "BSL"},
-                start_year=start_year,
-                end_year=end_year,
-            )
-            if not frame.empty:
-                return frame
-        except Exception:
-            pass
+        filters: dict[str, object] = {
+            "geo": tuple(geos),
+            "sex": ("M", "F"),
+            "unit": "NR",
+        }
+        if scenario is not None:
+            filters["projection"] = scenario
         return self.fetch(
-            dataset,
-            filters={"geo": tuple(geos), "sex": ("M", "F"), "unit": "NR"},
+            EUROSTAT_DATASETS["projections"],
+            filters=filters,
             start_year=start_year,
             end_year=end_year,
         )
 
-    def fertility(self, geos: Iterable[str] = EU27_ISO2, start_year: int = 1960) -> pd.DataFrame:
+    def fertility(
+        self,
+        geos: Iterable[str] = EU27_ISO2,
+        start_year: int = 1960,
+    ) -> pd.DataFrame:
         return self.fetch(
             EUROSTAT_DATASETS["fertility"],
             filters={"geo": tuple(geos)},
             start_year=start_year,
         )
 
-    def demographic_balance(self, geos: Iterable[str] = EU27_ISO2, start_year: int = 1960) -> pd.DataFrame:
+    def demographic_balance(
+        self,
+        geos: Iterable[str] = EU27_ISO2,
+        start_year: int = 1960,
+    ) -> pd.DataFrame:
         return self.fetch(
             EUROSTAT_DATASETS["demographic_balance"],
             filters={"geo": tuple(geos)},
