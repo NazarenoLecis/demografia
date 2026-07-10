@@ -1,0 +1,16 @@
+output,source,input_dataset,status,grain,notes
+population_age_sex_observed_projected,Eurostat and UN WPP,demo_pjan;proj_23np;WPP2024,implemented,country-year-age-sex-scenario,Observed and projected population with source and vintage
+age_structure_indicators,Derived,population_age_sex_observed_projected,implemented,country-year-scenario,Age bands mean median dependency and support ratios
+fertility_indicators,Eurostat,demo_frate,implemented,country-year-indicator-age,Original indicator codes labels units and flags retained
+demographic_balance_long,Eurostat,demo_gind,implemented,country-year-indicator,Long normalized demographic components
+demographic_balance,Eurostat,demo_gind,implemented,country-year,Wide balance and identity residual where components are available
+immigration_profile,Eurostat,migr_imm5prv,implemented_optional,country-year-age-sex-profile,Enabled with include-migration
+emigration_profile,Eurostat,migr_emi4ctb,implemented_optional,country-year-age-sex-profile,Enabled with include-migration
+migration_summary,Derived,migr_imm5prv;migr_emi4ctb,implemented_optional,country-year,Immigration emigration and net migration
+population_by_citizenship,Eurostat,migr_pop1ctz,implemented_optional,country-year-age-sex-category,Citizenship kept separate from country of birth
+population_by_country_of_birth,Eurostat,migr_pop3ctb,implemented_optional,country-year-age-sex-category,Country of birth kept separate from citizenship
+projection_inventory,Derived,proj_23np;WPP2024,implemented,source-vintage-scenario-country,Projection coverage and horizon
+international_demographic_indicators,World Bank WDI,configured indicator panel,implemented,country-year-indicator,Full union of EU27 and OECD38
+italy_population_age_sex_territorial,ISTAT,selected SDMX dataflow,implemented_configurable,territory-year-age-sex,Dataflow and key can be selected after official catalog discovery
+quality_report,Derived,final outputs,implemented,check,Integrity and demographic balance controls
+migrant_education_employment,Eurostat LFS and ISTAT,to be mapped to stable official multidimensional datasets,not_implemented,survey estimate,Must preserve sampling reliability and remain separate from registry counts
