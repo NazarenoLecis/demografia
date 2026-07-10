@@ -1,3 +1,4 @@
+from demografia.config import EU27_ISO3, EU_OECD_ISO3, OECD38_ISO3
 import pandas as pd
 
 from demografia.indicators import compute_age_structure
@@ -27,3 +28,9 @@ def test_dependency_ratios():
     assert result["pop_65_plus"] == 72
     assert result["dependency_youth"] == 30
     assert result["dependency_old"] == 72
+
+
+def test_comparison_universe_covers_full_eu_and_oecd():
+    assert set(EU27_ISO3).issubset(EU_OECD_ISO3)
+    assert set(OECD38_ISO3).issubset(EU_OECD_ISO3)
+    assert {"BGR", "HRV", "CYP", "MLT", "ROU"}.issubset(EU_OECD_ISO3)
