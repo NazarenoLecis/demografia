@@ -28,6 +28,8 @@ OECD38_ISO3 = (
     "NZL", "NOR", "POL", "PRT", "SVK", "SVN", "ESP", "SWE", "CHE", "TUR", "GBR", "USA",
 )
 
+EU_OECD_ISO3 = tuple(dict.fromkeys((*EU27_ISO3, *OECD38_ISO3)))
+
 EUROSTAT_TO_ISO3 = {
     "AT": "AUT", "BE": "BEL", "BG": "BGR", "HR": "HRV", "CY": "CYP", "CZ": "CZE",
     "DK": "DNK", "EE": "EST", "FI": "FIN", "FR": "FRA", "DE": "DEU", "EL": "GRC",
