@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from demografia.charts import animate_population_pyramid, plot_cohort_heatmap, plot_population_pyramid
-from demografia.config import CHART_DIR, EU27_ISO2, EU27_ISO3, FINAL_DIR, OECD38_ISO3, RAW_DIR, ensure_directories
+from demografia.config import CHART_DIR, EU27_ISO2, EU27_ISO3, EU_OECD_ISO3, FINAL_DIR, OECD38_ISO3, RAW_DIR, ensure_directories
 from demografia.indicators import add_group_benchmarks, compute_age_structure
 from demografia.quality import coverage_report
 from demografia.sources.eurostat import EurostatClient
@@ -104,15 +104,24 @@ def run_pipeline(options: PipelineOptions) -> dict[str, Path]:
     _save(structure, FINAL_DIR / "age_structure_indicators.parquet")
     outputs["age_structure"] = FINAL_DIR / "age_structure_indicators.parquet"
 
-    oecd_panel = world_bank.oecd_panel(start_year=options.start_year, end_year=options.end_year)
-    oecd_panel = add_group_benchmarks(
-        oecd_panel,
+    comparison_panel = world_bank.panel(
+        countries=EU_OECD_ISO3,
+        start_year=options.start_year,
+        end_year=options.end_year,
+    )
+    comparison_panel = add_group_benchmarks(
+        comparison_panel,
         {"EU27_MEDIAN": EU27_ISO3, "OECD38_MEDIAN": OECD38_ISO3},
     )
-    _save(oecd_panel, FINAL_DIR / "oecd_demographic_indicators.parquet")
+    _save(comparison_panel, FINAL_DIR / "international_demographic_indicators.parquet")
+    _save(
+        comparison_panel[comparison_panel["iso3"].isin((*OECD38_ISO3, "OECD38_MEDIAN"))],
+        FINAL_DIR / "oecd_demographic_indicators.parquet",
+    )
+    outputs["international_panel"] = FINAL_DIR / "international_demographic_indicators.parquet"
     outputs["oecd_panel"] = FINAL_DIR / "oecd_demographic_indicators.parquet"
 
-    coverage = coverage_report(population, oecd_panel)
+    coverage = coverage_report(population, comparison_panel)
     _save(coverage, FINAL_DIR / "coverage_report.parquet")
     outputs["coverage"] = FINAL_DIR / "coverage_report.parquet"
 
