@@ -287,7 +287,7 @@ def run_official_pipeline(options: OfficialPipelineOptions) -> dict[str, Path]:
             _status(status_rows, "INPS", "pipeline", "error", f"{type(exc).__name__}: {exc}")
             if options.strict:
                 raise
-    if options.include_rgs: 
+    if options.include_rgs:
         try:
             outputs.update(_run_rgs(options, status_rows))
         except Exception as exc:
@@ -303,7 +303,7 @@ def run_official_pipeline(options: OfficialPipelineOptions) -> dict[str, Path]:
     integrated = build_italy_demographic_fiscal_panel(age_structure, inps_support, rgs_panel)
     outputs["italy_integrated_panel"] = _save(
         integrated,
-        FINAL_DIR / "italy_demograpic_pension_fiscal_panel.parquet",
+        FINAL_DIR / "italy_demographic_pension_fiscal_panel.parquet",
     )
 
     status_frame = pd.DataFrame(status_rows)
