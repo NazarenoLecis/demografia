@@ -20,7 +20,7 @@ Il progetto copre:
 ## Fonti
 
 - Eurostat per popolazione UE per età e sesso, fertilità, bilancio demografico, migrazioni ed EUROPOP.
-- World Bank WDI per un pannello uniforme sui 38 membri OECD.
+- World Bank WDI per un pannello uniforme sull'unione dei paesi UE27 e OECD38.
 - UN World Population Prospects 2024 per piramidi e proiezioni dei paesi OECD extraeuropei.
 - ISTAT SDMX per il dettaglio italiano nazionale e territoriale. Il client generico è incluso; i dataflow saranno bloccati nel catalogo dopo la verifica dei singoli dataset.
 
@@ -98,6 +98,7 @@ output/data/raw/
 output/data/final/
   population_age_sex_observed_projected.*
   age_structure_indicators.*
+  international_demographic_indicators.*
   oecd_demographic_indicators.*
   coverage_report.*
   italy_population_age_sex_territorial.*
@@ -113,7 +114,7 @@ output/charts/
 
 `population_age_sex_observed_projected` è la tabella centrale. Mantiene distinti dati osservati e proiettati, fonte e scenario. Da questa tabella vengono calcolati piramidi, età media e mediana, fasce di età, tassi di dipendenza e rapporti di sostegno.
 
-Il confronto UE usa tutti i 27 Stati membri. Il pannello OECD usa l'elenco dei 38 membri. `coverage_report` segnala paesi o dimensioni mancanti senza sostituire dati assenti con valori stimati.
+Il pannello internazionale scarica l'unione dei 27 Stati membri UE e dei 38 membri OECD. I benchmark UE27 e OECD38 vengono calcolati sui rispettivi insiemi completi. `coverage_report` segnala paesi o dimensioni mancanti senza sostituire dati assenti con valori stimati.
 
 ## Limiti da mantenere espliciti
 
