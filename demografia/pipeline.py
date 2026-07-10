@@ -12,6 +12,7 @@ from demografia.config import (
     EU27_ISO3,
     EU_OECD_ISO3,
     FINAL_DIR,
+    INPUT_DIR,
     OECD38_ISO3,
     RAW_DIR,
     ensure_directories,
@@ -34,6 +35,7 @@ from demografia.sources.world_bank import WorldBankClient
 from demografia.sources.wpp import normalize_wpp_age_sex, read_wpp
 from demografia.territory import compute_territorial_age_structure, normalize_istat_population
 from demografia.transform import combine_population, normalize_eurostat_population
+from demografia.wpp_auto import download_wpp_age_sex
 
 
 @dataclass
@@ -43,7 +45,9 @@ class PipelineOptions:
     projection_end: int = 2100
     refresh: bool = False
     include_migration: bool = False
+    auto_wpp: bool = False
     wpp_age_sex: Path | None = None
+    wpp_url: str | None = None
     wpp_scale: float = 1000.0
     istat_population_dataflow: str | None = None
     istat_key: str = "all"
@@ -139,11 +143,19 @@ def run_pipeline(options: PipelineOptions) -> dict[str, Path]:
     projected = normalize_eurostat_population(eu_projection_raw, projected=True)
     population = combine_population(observed, projected)
 
-    if options.wpp_age_sex is not None:
-        wpp = normalize_wpp_age_sex(read_wpp(options.wpp_age_sex), value_scale=options.wpp_scale)
+    wpp_path = options.wpp_age_sex
+    if options.auto_wpp and wpp_path is None:
+        wpp_path = download_wpp_age_sex(
+            INPUT_DIR / "wpp",
+            refresh=options.refresh,
+            url=options.wpp_url,
+        )
+    if wpp_path is not None:
+        wpp = normalize_wpp_age_sex(read_wpp(wpp_path), value_scale=options.wpp_scale)
         wpp = wpp[wpp["iso3"].isin(OECD38_ISO3) & ~wpp["iso3"].isin(EU27_ISO3)]
         population = combine_population(population, wpp)
         _save(wpp, RAW_DIR / "wpp_oecd_extra_eu_age_sex.parquet")
+        outputs["wpp_oecd_age_sex"] = RAW_DIR / "wpp_oecd_extra_eu_age_sex.parquet"
 
     if options.istat_population_dataflow is not None:
         istat_raw = IstatClient().csv(
