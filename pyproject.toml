@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demografia-italiana"
+version = "0.1.0"
+description = "Pipeline riproducibile per analisi demografica italiana, UE e OECD"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pillow>=10.0",
+  "pyarrow>=15.0",
+  "requests>=2.32",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+include = ["demografia*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
