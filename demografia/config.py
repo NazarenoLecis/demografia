@@ -87,6 +87,7 @@ EUROSTAT_DATASETS = {
     "fertility": "demo_frate",
     "demographic_balance": "demo_gind",
     "projections": "proj_23np",
+    "life_expectancy": "demo_mlexpec",
     "immigration_profile": "migr_imm5prv",
     "emigration_profile": "migr_emi4ctb",
     "population_citizenship": "migr_pop1ctz",

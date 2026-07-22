@@ -180,6 +180,32 @@ def demographic_balance(
     )
 
 
+def life_expectancy(
+    geos: Iterable[str] = EU27_ISO2,
+    start_year: int = 1960,
+    end_year: int | None = None,
+    ages: Iterable[str] = ("Y_LT1", "Y65"),
+    sexes: Iterable[str] = ("T", "M", "F"),
+    refresh: bool = False,
+    chunk_size: int = 5,
+) -> pd.DataFrame:
+    """Fetch period life expectancy at birth and at age 65.
+
+    Eurostat `demo_mlexpec` stores life expectancy by sex and reference age.
+    The default age codes keep the two measures most useful for this project:
+    `Y_LT1`, read as life expectancy at birth, and `Y65`, read as remaining
+    life expectancy for people who have reached age 65.
+    """
+    return fetch(
+        EUROSTAT_DATASETS["life_expectancy"],
+        filters={"geo": tuple(geos), "age": tuple(ages), "sex": tuple(sexes), "unit": "YR"},
+        start_year=start_year,
+        end_year=end_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
 def regional_population_age_groups(
     geos: Iterable[str] = ITALY_NUTS2,
     start_year: int = 1990,

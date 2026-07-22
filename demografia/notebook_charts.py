@@ -16,6 +16,7 @@ TABLE_FILES = {
     "fertility": "fertility_indicators",
     "balance": "demographic_balance",
     "education": "education_attainment",
+    "life_expectancy": "life_expectancy",
     "regional_population": "italy_regional_population_age_sex",
     "regional_age_structure": "italy_regional_age_structure",
     "regional_balance": "italy_regional_demographic_balance",
@@ -31,8 +32,11 @@ METRICS = {
     "share_80_plus": {"label": "Quota 80+", "axis": "% popolazione"},
     "mean_age": {"label": "Età media", "axis": "Anni"},
     "median_age": {"label": "Età mediana", "axis": "Anni"},
+    "dependency_youth": {"label": "Dipendenza giovanile", "axis": "0-14 ogni 100 persone 15-64"},
     "dependency_old": {"label": "Dipendenza anziani", "axis": "65+ ogni 100 persone 15-64"},
     "dependency_total": {"label": "Dipendenza totale", "axis": "Dipendenti ogni 100 persone 15-64"},
+    "life_expectancy_birth": {"label": "Speranza di vita alla nascita", "axis": "Anni"},
+    "life_expectancy_65": {"label": "Speranza di vita a 65 anni", "axis": "Anni residui"},
     "live_births": {"label": "Nati vivi", "axis": "Migliaia", "scale": 1_000},
     "deaths": {"label": "Decessi", "axis": "Migliaia", "scale": 1_000},
     "natural_change": {"label": "Saldo naturale", "axis": "Migliaia", "scale": 1_000},
@@ -72,6 +76,10 @@ SOURCE_NOTES = {
         "Fonte: Eurostat edat_lfse_03.<br>Elaborazione di Nazareno Lecis.<br>"
         "Nota: secondaria generale = ISCED 34/44; professionale = ISCED 35/45; "
         "ED0-2 non separa primaria e secondaria inferiore."
+    ),
+    "life_expectancy": (
+        "Fonte: Eurostat demo_mlexpec.<br>Elaborazione di Nazareno Lecis.<br>"
+        "Nota: la speranza di vita è una misura di periodo; a 65 anni indica gli anni residui attesi."
     ),
     "europe": "Fonte: Eurostat, paesi UE27 disponibili.<br>Elaborazione di Nazareno Lecis.",
     "immigrant": "Fonte: Eurostat migr_pop3ctb.<br>Elaborazione di Nazareno Lecis.",
@@ -283,6 +291,7 @@ def metric_rows(tables: dict[str, pd.DataFrame], territory: str, metric: str) ->
         "share_80_plus",
         "mean_age",
         "median_age",
+        "dependency_youth",
         "dependency_old",
         "dependency_total",
     }:
@@ -309,6 +318,18 @@ def metric_rows(tables: dict[str, pd.DataFrame], territory: str, metric: str) ->
         return rows.sort_values("year")
     if metric in {"total_fertility_rate", "balance_gbirthrt"}:
         rows = fertility_rows(tables, territory, metric).copy()
+        rows["metric_value"] = rows["value"]
+        return rows.sort_values("year")
+    if metric in {"life_expectancy_birth", "life_expectancy_65"}:
+        level, code = territory.split(":", 1)
+        if level != "country" or "life_expectancy" not in tables:
+            return pd.DataFrame(columns=["year", "metric_value"])
+        rows = tables["life_expectancy"]
+        rows = rows[
+            rows["iso3"].eq(code)
+            & rows["indicator"].astype(str).eq(metric)
+            & rows["sex"].astype(str).eq("T")
+        ].copy()
         rows["metric_value"] = rows["value"]
         return rows.sort_values("year")
     return pd.DataFrame(columns=["year", "metric_value"])
@@ -560,17 +581,20 @@ def fig_dependency(
     territory: str = "country:ITA",
     compare: str = "country:ESP",
 ) -> go.Figure:
-    """Draw old-age and total dependency ratios."""
+    """Draw youth, old-age, and total dependency ratios."""
     fig = go.Figure()
     rows = preferred_rows(age_rows(tables, territory))
+    fig.add_scatter(x=rows["year"], y=rows["dependency_youth"], mode="lines+markers", name=f"{territory_label(tables, territory)} giovani")
     fig.add_scatter(x=rows["year"], y=rows["dependency_old"], mode="lines+markers", name=f"{territory_label(tables, territory)} anziani")
     fig.add_scatter(x=rows["year"], y=rows["dependency_total"], mode="lines+markers", name=f"{territory_label(tables, territory)} totale")
     if compare != "none":
         comparison = preferred_rows(age_rows(tables, compare))
+        fig.add_scatter(x=comparison["year"], y=comparison["dependency_youth"], mode="lines+markers", name=f"{territory_label(tables, compare)} giovani", line={"dash": "dash"})
         fig.add_scatter(x=comparison["year"], y=comparison["dependency_old"], mode="lines+markers", name=f"{territory_label(tables, compare)} anziani", line={"dash": "dash"})
+        fig.add_scatter(x=comparison["year"], y=comparison["dependency_total"], mode="lines+markers", name=f"{territory_label(tables, compare)} totale", line={"dash": "dash"})
     fig.update_yaxes(title="Persone ogni 100 in età 15-64")
     fig.update_xaxes(title="Anno")
-    return apply_layout(fig, "Dipendenza anziani", SOURCE_NOTES["age"])
+    return apply_layout(fig, "Dipendenza demografica", SOURCE_NOTES["age"])
 
 
 def regional_options(tables: dict[str, pd.DataFrame], level: str = "province") -> pd.DataFrame:
@@ -759,6 +783,33 @@ def fig_education_trend(
     fig.update_layout(yaxis={"title": "% livello selezionato"}, yaxis2={"title": "Milioni residenti", "overlaying": "y", "side": "right"})
     fig.update_xaxes(title="Anno")
     return apply_layout(fig, "Istruzione e popolazione totale", SOURCE_NOTES["education"])
+
+
+def fig_life_expectancy(
+    tables: dict[str, pd.DataFrame],
+    country: str = "ITA",
+    compare: str = "ESP",
+) -> go.Figure:
+    """Draw life expectancy at birth and remaining life expectancy at age 65."""
+    fig = go.Figure()
+    for iso3, dash in ((country, "solid"), (compare, "dash")):
+        if iso3 == "none":
+            continue
+        for metric, label in (
+            ("life_expectancy_birth", "alla nascita"),
+            ("life_expectancy_65", "a 65 anni"),
+        ):
+            rows = metric_rows(tables, f"country:{iso3}", metric)
+            fig.add_scatter(
+                x=rows["year"],
+                y=rows["metric_value"],
+                mode="lines+markers",
+                name=f"{country_name(iso3)} {label}",
+                line={"dash": dash},
+            )
+    fig.update_yaxes(title="Anni")
+    fig.update_xaxes(title="Anno")
+    return apply_layout(fig, "Speranza di vita", SOURCE_NOTES["life_expectancy"])
 
 
 def europe_metric_table(tables: dict[str, pd.DataFrame], metric: str) -> pd.DataFrame:

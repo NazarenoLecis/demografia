@@ -27,6 +27,7 @@ from demografia.final_tables import (
     normalize_eurostat_demographic_balance,
     normalize_eurostat_education_attainment,
     normalize_eurostat_fertility,
+    normalize_eurostat_life_expectancy,
     normalize_eurostat_migration,
     normalize_eurostat_regional_population,
     normalize_migrant_stock,
@@ -121,8 +122,9 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
     )
     save_table(eu_projection_raw, RAW_DIR / "eurostat_population_projections.parquet")
 
-    # Fertility, demographic balance, and educational attainment are normalized
-    # into compact tables used for time-series analysis.
+    # Fertility, demographic balance, educational attainment, and life
+    # expectancy are normalized into compact tables used for time-series
+    # analysis.
     fertility_raw = eurostat.fertility(
         geos=options["eu_geos"],
         start_year=options["start_year"],
@@ -141,21 +143,31 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
         end_year=options["end_year"],
         refresh=options["refresh"],
     )
+    life_expectancy_raw = eurostat.life_expectancy(
+        geos=options["eu_geos"],
+        start_year=options["start_year"],
+        end_year=options["end_year"],
+        refresh=options["refresh"],
+    )
     save_table(fertility_raw, RAW_DIR / "eurostat_fertility.parquet")
     save_table(balance_raw, RAW_DIR / "eurostat_demographic_balance.parquet")
     save_table(education_raw, RAW_DIR / "eurostat_education_attainment.parquet")
+    save_table(life_expectancy_raw, RAW_DIR / "eurostat_life_expectancy.parquet")
 
     fertility = normalize_eurostat_fertility(fertility_raw)
     balance_long = normalize_eurostat_demographic_balance(balance_raw)
     balance_wide = build_demographic_balance_wide(balance_long)
     education = normalize_eurostat_education_attainment(education_raw)
+    life_expectancy = normalize_eurostat_life_expectancy(life_expectancy_raw)
     save_table(fertility, FINAL_DIR / "fertility_indicators.parquet")
     save_table(balance_long, FINAL_DIR / "demographic_balance_long.parquet")
     save_table(balance_wide, FINAL_DIR / "demographic_balance.parquet")
     save_table(education, FINAL_DIR / "education_attainment.parquet")
+    save_table(life_expectancy, FINAL_DIR / "life_expectancy.parquet")
     outputs["fertility"] = FINAL_DIR / "fertility_indicators.parquet"
     outputs["demographic_balance"] = FINAL_DIR / "demographic_balance.parquet"
     outputs["education_attainment"] = FINAL_DIR / "education_attainment.parquet"
+    outputs["life_expectancy"] = FINAL_DIR / "life_expectancy.parquet"
 
     if options["include_migration"]:
         # Migration outputs stay separated by concept: inflows, outflows, net

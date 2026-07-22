@@ -72,6 +72,12 @@ EDUCATION_LEVEL_MAP = {
     "ED35_45": "upper_secondary_vocational",
 }
 
+LIFE_EXPECTANCY_AGE_MAP = {
+    "Y_LT1": ("life_expectancy_birth", "Speranza di vita alla nascita"),
+    "Y0": ("life_expectancy_birth", "Speranza di vita alla nascita"),
+    "Y65": ("life_expectancy_65", "Speranza di vita a 65 anni"),
+}
+
 
 def _first_existing(columns: Iterable[str], candidates: Iterable[str]) -> str | None:
     available = set(columns)
@@ -340,6 +346,68 @@ def build_demographic_balance_wide(balance: pd.DataFrame) -> pd.DataFrame:
     if {"population_change", natural, migration}.issubset(wide):
         wide["balance_identity_residual"] = wide["population_change"] - wide[natural] - wide[migration]
     return wide
+
+
+def normalize_eurostat_life_expectancy(
+    frame: pd.DataFrame,
+    extraction_date: str | None = None,
+) -> pd.DataFrame:
+    """Normalize Eurostat life-expectancy records.
+
+    The output keeps `age_code` and `sex` visible because life expectancy at
+    birth and remaining life expectancy at 65 answer different questions, and
+    the dashboard can expose total, male, or female values without recomputing
+    the Eurostat measure.
+    """
+    columns = [
+        "source",
+        "dataset",
+        "extraction_date",
+        "iso3",
+        "year",
+        "age_code",
+        "age_label",
+        "indicator",
+        "indicator_label",
+        "sex",
+        "unit",
+        "value",
+        "status_flag",
+    ]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    geo_col = _first_existing(frame.columns, ("geo", "geo_label"))
+    year_col = _first_existing(frame.columns, ("time", "TIME_PERIOD", "year"))
+    age_col = _first_existing(frame.columns, ("age", "age_label"))
+    if not geo_col or not year_col or not age_col or "value" not in frame:
+        raise ValueError("Dimensioni Eurostat insufficienti per la speranza di vita")
+
+    result = pd.DataFrame(index=frame.index)
+    result["source"] = "Eurostat"
+    result["dataset"] = frame.get("dataset", "demo_mlexpec")
+    result["extraction_date"] = extraction_date or date.today().isoformat()
+    result["iso3"] = _iso3(frame[geo_col])
+    result["year"] = _as_year(frame[year_col])
+    result["age_code"] = frame[age_col].astype(str)
+    label_col = f"{age_col}_label"
+    result["age_label"] = frame[label_col].astype(str) if label_col in frame else result["age_code"]
+
+    mapped = result["age_code"].map(lambda code: LIFE_EXPECTANCY_AGE_MAP.get(str(code).upper()))
+    result["indicator"] = mapped.map(lambda value: value[0] if value is not None else pd.NA)
+    result["indicator_label"] = mapped.map(lambda value: value[1] if value is not None else pd.NA)
+    unknown = result["indicator"].isna()
+    result.loc[unknown, "indicator"] = "life_expectancy_" + result.loc[unknown, "age_code"].str.lower()
+    result.loc[unknown, "indicator_label"] = result.loc[unknown, "age_label"]
+
+    sex_col = _first_existing(frame.columns, ("sex", "sex_label"))
+    if sex_col:
+        result["sex"] = frame[sex_col].astype(str).str.upper().replace({"TOTAL": "T", "MALE": "M", "FEMALE": "F"})
+    else:
+        result["sex"] = "T"
+    result["unit"] = frame.get("unit", "YR").astype(str) if "unit" in frame else "YR"
+    result["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    result["status_flag"] = frame.get("status_flag", pd.Series(pd.NA, index=frame.index))
+    return result[columns].dropna(subset=["iso3", "year", "value"])
 
 
 def normalize_eurostat_education_attainment(
