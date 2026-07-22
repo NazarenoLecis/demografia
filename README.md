@@ -40,6 +40,17 @@ La pipeline scarica, normalizza e controlla fonti statistiche ufficiali. Gli out
 
 Ogni script contiene la propria configurazione in cima al file ed espone una funzione `main(...)` con parametri espliciti, quindi puo essere lanciato da VS Code, importato in notebook o richiamato da test.
 
+## Notebook di analisi
+
+I notebook in `notebooks/` sono fogli di lavoro tematici. Ogni foglio ha una cella di parametri in alto, spiegazioni in markdown e grafici verticali con fonte ed elaborazione in basso a sinistra.
+
+- `notebooks/01_kebab_e_proiezioni.ipynb`: popolazione, Kebab demografico, proiezioni, popolazione nata all'estero, età media, mediana, quantili e dipendenza.
+- `notebooks/02_movimento_naturale.ipynb`: natalità, fecondità, nati, decessi, saldo naturale e letture regionali/provinciali.
+- `notebooks/03_migrazioni.ipynb`: flussi migratori, saldo migratorio, variazione della popolazione e stock nato all'estero.
+- `notebooks/04_istruzione.ipynb`: distribuzione dei titoli di studio, fasce di età, sesso, confronto con popolazione totale e paesi UE.
+- `notebooks/05_territori_italiani.ipynb`: classifiche e serie regionali/provinciali per popolazione, struttura per età, nati, decessi, fecondità e saldo migratorio.
+- `notebooks/06_confronti_europei.ipynb`: classifiche UE e serie con mediana europea per popolazione, invecchiamento, dipendenza, fecondità e istruzione.
+
 ## Script Principali
 
 - `scripts/run_official_pipeline.py`: pipeline completa con Eurostat, WPP, World Bank, ISTAT, INPS e RGS/OpenBDAP.
