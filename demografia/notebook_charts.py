@@ -52,6 +52,15 @@ EDUCATION_LABELS = {
     "tertiary": "Terziario",
 }
 
+EDUCATION_ORDER = {
+    "low_education": 10,
+    "upper_secondary_post_secondary": 20,
+    "upper_secondary_general": 30,
+    "upper_secondary_vocational": 40,
+    "tertiary": 50,
+    "upper_secondary_or_more": 60,
+}
+
 SOURCE_NOTES = {
     "population": "Fonte: Eurostat demo_pjan e proj_23np.<br>Elaborazione di Nazareno Lecis.",
     "age": "Fonte: Eurostat demo_pjan e proj_23np.<br>Elaborazione di Nazareno Lecis.",
@@ -59,7 +68,11 @@ SOURCE_NOTES = {
     "fertility": "Fonte: Eurostat demo_frate, demo_gind e demo_r_find3.<br>Elaborazione di Nazareno Lecis.",
     "balance": "Fonte: Eurostat demo_gind e demo_r_gind3.<br>Elaborazione di Nazareno Lecis.",
     "migration": "Fonte: Eurostat demo_gind e demo_r_gind3.<br>Elaborazione di Nazareno Lecis.",
-    "education": "Fonte: Eurostat edat_lfse_03.<br>Elaborazione di Nazareno Lecis.",
+    "education": (
+        "Fonte: Eurostat edat_lfse_03.<br>Elaborazione di Nazareno Lecis.<br>"
+        "Nota: secondaria generale = ISCED 34/44; professionale = ISCED 35/45; "
+        "ED0-2 non separa primaria e secondaria inferiore."
+    ),
     "europe": "Fonte: Eurostat, paesi UE27 disponibili.<br>Elaborazione di Nazareno Lecis.",
     "immigrant": "Fonte: Eurostat migr_pop3ctb.<br>Elaborazione di Nazareno Lecis.",
 }
@@ -694,7 +707,11 @@ def education_display_rows(rows: pd.DataFrame) -> pd.DataFrame:
     keep = ~rows["education_level"].eq("upper_secondary_or_more")
     if has_sublevels:
         keep &= ~rows["education_level"].eq("upper_secondary_post_secondary")
-    return rows[keep].sort_values("value", ascending=False)
+    result = rows[keep].copy()
+    result["_education_order"] = result["education_level"].map(EDUCATION_ORDER).fillna(999)
+    return result.sort_values(["_education_order", "value"], ascending=[True, False]).drop(
+        columns="_education_order"
+    )
 
 
 def fig_education_distribution(
@@ -712,6 +729,7 @@ def fig_education_distribution(
     primary = education_display_rows(rows[rows["iso3"].eq(country) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["year"].astype(int).eq(int(year))])
     comparison = education_display_rows(rows[rows["iso3"].eq(compare) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["year"].astype(int).eq(int(year))])
     levels = list(dict.fromkeys(primary["education_level"].tolist() + comparison["education_level"].tolist()))
+    levels = sorted(levels, key=lambda level: EDUCATION_ORDER.get(level, 999))
     fig = go.Figure()
     for data, label in ((primary, country_name(country)), (comparison, country_name(compare))):
         mapped = data.set_index("education_level")["value"].to_dict()

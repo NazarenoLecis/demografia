@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 
 from demografia.notebook_charts import (
     apply_layout,
+    education_display_rows,
     europe_metric_table,
     finest_non_overlapping_age_rows,
     metric_rows,
@@ -69,3 +70,25 @@ def test_europe_metric_table_keeps_eu27_countries_only():
     rows = europe_metric_table(tables, "share_65_plus")
 
     assert rows["iso3"].tolist() == ["ITA"]
+
+
+def test_education_display_rows_uses_level_order_and_avoids_secondary_overlap():
+    rows = pd.DataFrame(
+        [
+            {"education_level": "tertiary", "value": 40},
+            {"education_level": "upper_secondary_vocational", "value": 30},
+            {"education_level": "low_education", "value": 35},
+            {"education_level": "upper_secondary_general", "value": 15},
+            {"education_level": "upper_secondary_post_secondary", "value": 45},
+            {"education_level": "upper_secondary_or_more", "value": 60},
+        ]
+    )
+
+    selected = education_display_rows(rows)
+
+    assert selected["education_level"].tolist() == [
+        "low_education",
+        "upper_secondary_general",
+        "upper_secondary_vocational",
+        "tertiary",
+    ]
