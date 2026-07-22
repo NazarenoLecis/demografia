@@ -13,4 +13,4 @@ projection_inventory,Derived,proj_23np;WPP2024,implemented,source-vintage-scenar
 international_demographic_indicators,World Bank WDI,configured indicator panel,implemented,country-year-indicator,Full union of EU27 and OECD38
 italy_population_age_sex_territorial,ISTAT,selected SDMX dataflow,implemented_configurable,territory-year-age-sex,Dataflow and key can be selected after official catalog discovery
 quality_report,Derived,final outputs,implemented,check,Integrity and demographic balance controls
-migrant_education_employment,Eurostat LFS and ISTAT,to be mapped to stable official multidimensional datasets,not_implemented,survey estimate,Must preserve sampling reliability and remain separate from registry counts
+education_attainment,Eurostat edat_lfse_03,EU country by year age sex ISCED 2011 level,implemented,survey percentage,Labour Force Survey percentages kept separate from registry counts

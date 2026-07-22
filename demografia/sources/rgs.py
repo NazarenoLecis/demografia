@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Iterable
@@ -92,110 +91,123 @@ def _read_zip_bytes(raw: bytes, source: str) -> pd.DataFrame:
         return _read_bytes(archive.read(member), Path(member).suffix.lower(), f"{source}:{member}")
 
 
-@dataclass
-class RgsClient:
-    refresh: bool = False
+def package_list(refresh: bool = False, timeout: int = 180) -> list[str]:
+    payload = get_json(f"{OPENBDAP_API}/package_list", refresh=refresh, timeout=timeout)
+    return [str(value) for value in (_result(payload) or [])]
 
-    def package_list(self) -> list[str]:
-        payload = get_json(f"{OPENBDAP_API}/package_list", refresh=self.refresh, timeout=180)
-        return [str(value) for value in (_result(payload) or [])]
 
-    def package_search(self, query: str, rows: int = 100, start: int = 0) -> dict[str, Any]:
-        payload = get_json(
-            f"{OPENBDAP_API}/package_search",
-            params={"q": query, "rows": rows, "start": start},
-            refresh=self.refresh,
-            timeout=180,
-        )
-        result = _result(payload)
-        return result if isinstance(result, dict) else {"results": result or [], "count": len(result or [])}
+def package_search(
+    query: str,
+    rows: int = 100,
+    start: int = 0,
+    refresh: bool = False,
+    timeout: int = 180,
+) -> dict[str, Any]:
+    payload = get_json(
+        f"{OPENBDAP_API}/package_search",
+        params={"q": query, "rows": rows, "start": start},
+        refresh=refresh,
+        timeout=timeout,
+    )
+    result = _result(payload)
+    return result if isinstance(result, dict) else {"results": result or [], "count": len(result or [])}
 
-    def search_all(self, query: str, page_size: int = 100, max_pages: int = 20) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for page in range(max_pages):
-            result = self.package_search(query, rows=page_size, start=page * page_size)
-            batch = [item for item in result.get("results", []) if isinstance(item, dict)]
-            rows.extend(batch)
-            if len(batch) < page_size or len(rows) >= int(result.get("count", len(rows))):
-                break
-        return rows
 
-    def package_show(self, package_id: str) -> dict[str, Any]:
-        payload = get_json(
-            f"{OPENBDAP_API}/package_show",
-            params={"id": package_id},
-            refresh=self.refresh,
-            timeout=180,
-        )
-        result = _result(payload)
-        return result if isinstance(result, dict) else {}
+def search_all(
+    query: str,
+    page_size: int = 100,
+    max_pages: int = 20,
+    refresh: bool = False,
+    timeout: int = 180,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for page in range(max_pages):
+        result = package_search(query, rows=page_size, start=page * page_size, refresh=refresh, timeout=timeout)
+        batch = [item for item in result.get("results", []) if isinstance(item, dict)]
+        rows.extend(batch)
+        if len(batch) < page_size or len(rows) >= int(result.get("count", len(rows))):
+            break
+    return rows
 
-    def search_frame(self, queries: Iterable[str]) -> pd.DataFrame:
-        records: list[dict[str, Any]] = []
-        seen: set[tuple[str, str]] = set()
-        for query in queries:
-            for package in self.search_all(query):
-                resources = package.get("resources") or [None]
-                for resource in resources:
-                    resource = resource or {}
-                    key = (str(package.get("id", "")), str(resource.get("id", "")))
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    records.append(
-                        {
-                            "query": query,
-                            "package_id": package.get("id", ""),
-                            "name": package.get("name", ""),
-                            "title": package.get("title", ""),
-                            "notes": package.get("notes", ""),
-                            "metadata_created": package.get("metadata_created"),
-                            "metadata_modified": package.get("metadata_modified"),
-                            "resource_id": resource.get("id", ""),
-                            "resource_name": resource.get("name", ""),
-                            "description": resource.get("description", ""),
-                            "format": str(resource.get("format", "")).lower(),
-                            "url": resource.get("url", ""),
-                            "last_modified": resource.get("last_modified"),
-                        }
-                    )
-        frame = pd.DataFrame(records)
-        if not frame.empty:
-            frame["metadata_modified"] = pd.to_datetime(frame["metadata_modified"], errors="coerce")
-            frame["last_modified"] = pd.to_datetime(frame["last_modified"], errors="coerce")
-        return frame
 
-    @staticmethod
-    def select_resources(
-        frame: pd.DataFrame,
-        formats: tuple[str, ...] = ("csv", "xlsx", "xls", "json", "xml", "zip"),
-        one_per_package: bool = True,
-    ) -> pd.DataFrame:
-        if frame.empty:
-            return frame.copy()
-        priorities = {value: index for index, value in enumerate(formats)}
-        result = frame[frame["format"].isin(priorities)].copy()
-        result["format_priority"] = result["format"].map(priorities)
-        result = result.sort_values(
-            ["metadata_modified", "last_modified", "format_priority"],
-            ascending=[False, False, True],
-            na_position="last",
-        )
-        if one_per_package:
-            result = result.drop_duplicates("package_id", keep="first")
-        return result.drop(columns="format_priority")
+def package_show(package_id: str, refresh: bool = False, timeout: int = 180) -> dict[str, Any]:
+    payload = get_json(
+        f"{OPENBDAP_API}/package_show",
+        params={"id": package_id},
+        refresh=refresh,
+        timeout=timeout,
+    )
+    result = _result(payload)
+    return result if isinstance(result, dict) else {}
 
-    def download_resource(self, resource: pd.Series | dict[str, Any], target_dir: Path) -> Path:
-        item = dict(resource)
-        url = str(item.get("url", ""))
-        if not url:
-            raise ValueError("Risorsa RGS priva di URL")
-        return download_file(
-            url,
-            target_dir / _resource_filename(item),
-            refresh=self.refresh,
-            timeout=900,
-        )
+
+def search_frame(queries: Iterable[str], refresh: bool = False, timeout: int = 180) -> pd.DataFrame:
+    records: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for query in queries:
+        for package in search_all(query, refresh=refresh, timeout=timeout):
+            resources = package.get("resources") or [None]
+            for resource in resources:
+                resource = resource or {}
+                key = (str(package.get("id", "")), str(resource.get("id", "")))
+                if key in seen:
+                    continue
+                seen.add(key)
+                records.append(
+                    {
+                        "query": query,
+                        "package_id": package.get("id", ""),
+                        "name": package.get("name", ""),
+                        "title": package.get("title", ""),
+                        "notes": package.get("notes", ""),
+                        "metadata_created": package.get("metadata_created"),
+                        "metadata_modified": package.get("metadata_modified"),
+                        "resource_id": resource.get("id", ""),
+                        "resource_name": resource.get("name", ""),
+                        "description": resource.get("description", ""),
+                        "format": str(resource.get("format", "")).lower(),
+                        "url": resource.get("url", ""),
+                        "last_modified": resource.get("last_modified"),
+                    }
+                )
+    frame = pd.DataFrame(records)
+    if not frame.empty:
+        frame["metadata_modified"] = pd.to_datetime(frame["metadata_modified"], errors="coerce")
+        frame["last_modified"] = pd.to_datetime(frame["last_modified"], errors="coerce")
+    return frame
+
+
+def select_resources(
+    frame: pd.DataFrame,
+    formats: tuple[str, ...] = ("csv", "xlsx", "xls", "json", "xml", "zip"),
+    one_per_package: bool = True,
+) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    priorities = {value: index for index, value in enumerate(formats)}
+    result = frame[frame["format"].isin(priorities)].copy()
+    result["format_priority"] = result["format"].map(priorities)
+    result = result.sort_values(
+        ["metadata_modified", "last_modified", "format_priority"],
+        ascending=[False, False, True],
+        na_position="last",
+    )
+    if one_per_package:
+        result = result.drop_duplicates("package_id", keep="first")
+    return result.drop(columns="format_priority")
+
+
+def download_resource(resource: pd.Series | dict[str, Any], target_dir: Path, refresh: bool = False) -> Path:
+    item = dict(resource)
+    url = str(item.get("url", ""))
+    if not url:
+        raise ValueError("Risorsa RGS priva di URL")
+    return download_file(
+        url,
+        target_dir / _resource_filename(item),
+        refresh=refresh,
+        timeout=900,
+    )
 
 
 def read_rgs_resource(path: str | Path) -> pd.DataFrame:

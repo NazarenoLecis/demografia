@@ -1,74 +1,79 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+import sys
 
-from demografia.config import EU27_ISO2, EU_OECD_ISO3
-from demografia.pipeline import PipelineOptions, run_pipeline
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from demografia.pipeline import pipeline_options, run_pipeline
+from demografia.utils import print_outputs
 
 
-def _codes(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
-    if not value:
-        return default
-    return tuple(code.strip().upper() for code in value.split(",") if code.strip())
+# Configurazione per VS Code.
+# Aprire questo file, modificare i valori se necessario e usare "Run Python File".
+START_YEAR = 2020
+END_YEAR = 2024
+PROJECTION_END = 2030
+REFRESH = False
+INCLUDE_MIGRATION = True
+AUTO_WPP = False
+WPP_AGE_SEX: Path | None = None
+WPP_URL: str | None = None
+WPP_SCALE = 1000.0
+ISTAT_POPULATION_DATAFLOW: str | None = None
+ISTAT_KEY = "all"
+MAKE_ANIMATION = False
+EU_GEOS = ("IT",)
+COMPARISON_COUNTRIES = ("ITA",)
+PROJECTION_SCENARIO: str | None = "BSL"
+GENERATE_ALL_COUNTRY_KEBABS = False
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Esegue la pipeline demografica completa")
-    parser.add_argument("--start-year", type=int, default=1960)
-    parser.add_argument("--end-year", type=int, default=2026)
-    parser.add_argument("--projection-end", type=int, default=2100)
-    parser.add_argument("--refresh", action="store_true")
-    parser.add_argument("--include-migration", action="store_true")
-    parser.add_argument("--auto-wpp", action="store_true")
-    parser.add_argument("--wpp-age-sex", type=Path)
-    parser.add_argument("--wpp-url", help="URL ufficiale WPP esplicito")
-    parser.add_argument(
-        "--wpp-scale",
-        type=float,
-        default=1000.0,
-        help="Moltiplicatore dei valori WPP",
+def main(
+    start_year: int = START_YEAR,
+    end_year: int = END_YEAR,
+    projection_end: int = PROJECTION_END,
+    refresh: bool = REFRESH,
+    include_migration: bool = INCLUDE_MIGRATION,
+    auto_wpp: bool = AUTO_WPP,
+    wpp_age_sex: Path | None = WPP_AGE_SEX,
+    wpp_url: str | None = WPP_URL,
+    wpp_scale: float = WPP_SCALE,
+    istat_population_dataflow: str | None = ISTAT_POPULATION_DATAFLOW,
+    istat_key: str = ISTAT_KEY,
+    make_animation: bool = MAKE_ANIMATION,
+    eu_geos: tuple[str, ...] = EU_GEOS,
+    comparison_countries: tuple[str, ...] = COMPARISON_COUNTRIES,
+    projection_scenario: str | None = PROJECTION_SCENARIO,
+    generate_all_country_kebabs: bool = GENERATE_ALL_COUNTRY_KEBABS,
+) -> dict[str, Path]:
+    """Run the international demographic pipeline.
+
+    Parameters are explicit so the script can be imported by notebooks, tests,
+    or a VS Code launch configuration without relying on command-line parsing.
+    """
+    options = pipeline_options(
+        start_year=start_year,
+        end_year=end_year,
+        projection_end=projection_end,
+        refresh=refresh,
+        include_migration=include_migration,
+        auto_wpp=auto_wpp,
+        wpp_age_sex=wpp_age_sex,
+        wpp_url=wpp_url,
+        wpp_scale=wpp_scale,
+        istat_population_dataflow=istat_population_dataflow,
+        istat_key=istat_key,
+        make_animation=make_animation,
+        eu_geos=eu_geos,
+        comparison_countries=comparison_countries,
+        projection_scenario=projection_scenario,
+        generate_all_country_kebabs=generate_all_country_kebabs,
     )
-    parser.add_argument(
-        "--istat-population-dataflow",
-        help="ID del dataflow ISTAT per territorio, età e sesso",
-    )
-    parser.add_argument("--istat-key", default="all", help="Chiave SDMX ISTAT")
-    parser.add_argument("--make-animation", action="store_true")
-    parser.add_argument("--eu-geos", help="Codici Eurostat separati da virgola; default UE27")
-    parser.add_argument(
-        "--comparison-countries",
-        help="Codici ISO3 separati da virgola; default unione UE-OECD",
-    )
-    parser.add_argument(
-        "--projection-scenario",
-        help="Codice scenario Eurostat; omesso conserva tutti gli scenari",
-    )
-    parser.add_argument("--generate-all-country-pyramids", action="store_true")
-    return parser.parse_args()
+    return run_pipeline(options)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    outputs = run_pipeline(
-        PipelineOptions(
-            start_year=args.start_year,
-            end_year=args.end_year,
-            projection_end=args.projection_end,
-            refresh=args.refresh,
-            include_migration=args.include_migration,
-            auto_wpp=args.auto_wpp,
-            wpp_age_sex=args.wpp_age_sex,
-            wpp_url=args.wpp_url,
-            wpp_scale=args.wpp_scale,
-            istat_population_dataflow=args.istat_population_dataflow,
-            istat_key=args.istat_key,
-            make_animation=args.make_animation,
-            eu_geos=_codes(args.eu_geos, EU27_ISO2),
-            comparison_countries=_codes(args.comparison_countries, EU_OECD_ISO3),
-            projection_scenario=args.projection_scenario,
-            generate_all_country_pyramids=args.generate_all_country_pyramids,
-        )
-    )
-    for name, path in outputs.items():
-        print(f"{name}: {path}")
+    print_outputs(main())

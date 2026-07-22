@@ -1,21 +1,26 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from demografia.config import INPUT_DIR
 from demografia.wpp_auto import download_wpp_age_sex
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Scarica il file ufficiale WPP per età e sesso")
-    parser.add_argument("--target-dir", type=Path, default=INPUT_DIR / "wpp")
-    parser.add_argument("--url", help="URL ufficiale esplicito; omesso usa la discovery")
-    parser.add_argument("--refresh", action="store_true")
-    return parser.parse_args()
+# Configurazione per VS Code.
+TARGET_DIR = INPUT_DIR / "wpp"
+URL: str | None = None
+REFRESH = False
+
+
+def main(target_dir: Path = TARGET_DIR, url: str | None = URL, refresh: bool = REFRESH) -> Path:
+    """Download the official WPP age-by-sex file used for OECD extra-EU countries."""
+    return download_wpp_age_sex(target_dir, refresh=refresh, url=url)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    path = download_wpp_age_sex(args.target_dir, refresh=args.refresh, url=args.url)
-    print(path)
+    print(main())

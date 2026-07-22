@@ -80,7 +80,10 @@ EUROSTAT_DATASETS = {
     "emigration_profile": "migr_emi4ctb",
     "population_citizenship": "migr_pop1ctz",
     "population_birth_country": "migr_pop3ctb",
+    "education_attainment": "edat_lfse_03",
 }
+
+EDUCATION_ATTAINMENT_AGE_GROUPS = ("Y15-64", "Y25-64", "Y25-34", "Y35-44", "Y45-54", "Y55-64")
 
 
 def ensure_directories() -> None:

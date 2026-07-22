@@ -23,7 +23,7 @@ def test_population_role_prefers_age_and_sex_detail():
     )
     registry = score_istat_dataflows(dataflows)
     match = resolve_istat_role(registry, "population_age_sex")
-    assert match.dataflow_id == "B"
+    assert match["dataflow_id"] == "B"
 
 
 def test_ambiguous_role_is_not_selected_silently():

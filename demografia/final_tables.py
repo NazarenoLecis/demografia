@@ -63,6 +63,15 @@ BALANCE_CODE_MAP = {
     "GROWRT": "population_growth_rate",
 }
 
+EDUCATION_LEVEL_MAP = {
+    "ED0-2": "low_education",
+    "ED3_4": "upper_secondary_post_secondary",
+    "ED5-8": "tertiary",
+    "ED3-8": "upper_secondary_or_more",
+    "ED34_44": "upper_secondary_general",
+    "ED35_45": "upper_secondary_vocational",
+}
+
 
 def _first_existing(columns: Iterable[str], candidates: Iterable[str]) -> str | None:
     available = set(columns)
@@ -229,6 +238,64 @@ def build_demographic_balance_wide(balance: pd.DataFrame) -> pd.DataFrame:
     if {"population_change", natural, migration}.issubset(wide):
         wide["balance_identity_residual"] = wide["population_change"] - wide[natural] - wide[migration]
     return wide
+
+
+def normalize_eurostat_education_attainment(
+    frame: pd.DataFrame,
+    extraction_date: str | None = None,
+) -> pd.DataFrame:
+    """Normalize Eurostat educational-attainment percentages.
+
+    The table intentionally stores percentages and keeps age group, sex, and
+    ISCED level explicit. It should not be merged into population counts without
+    an explicit weighting step.
+    """
+    columns = [
+        "source",
+        "dataset",
+        "extraction_date",
+        "iso3",
+        "year",
+        "age_low",
+        "age_high",
+        "age_label",
+        "sex",
+        "education_level_code",
+        "education_level",
+        "education_level_label",
+        "unit",
+        "value",
+        "status_flag",
+    ]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    geo_col = _first_existing(frame.columns, ("geo", "geo_label"))
+    year_col = _first_existing(frame.columns, ("time", "TIME_PERIOD", "year"))
+    education_col = _first_existing(frame.columns, ("isced11", "education_level"))
+    age_col = _first_existing(frame.columns, ("age", "age_label"))
+    if not geo_col or not year_col or not education_col or not age_col or "value" not in frame:
+        raise ValueError("Dimensioni Eurostat insufficienti per i titoli di studio")
+
+    result = pd.DataFrame(index=frame.index)
+    result["source"] = "Eurostat"
+    result["dataset"] = frame.get("dataset", "edat_lfse_03")
+    result["extraction_date"] = extraction_date or date.today().isoformat()
+    result["iso3"] = _iso3(frame[geo_col])
+    result["year"] = _as_year(frame[year_col])
+    result["age_low"], result["age_high"], result["age_label"] = _age_columns(frame[age_col])
+    result["sex"] = frame.get("sex", "T").astype(str).str.upper() if "sex" in frame else "T"
+    result["education_level_code"] = frame[education_col].astype(str)
+    label_col = f"{education_col}_label"
+    result["education_level_label"] = (
+        frame[label_col].astype(str) if label_col in frame else result["education_level_code"]
+    )
+    result["education_level"] = result["education_level_code"].map(EDUCATION_LEVEL_MAP).fillna(
+        result["education_level_code"].str.lower()
+    )
+    result["unit"] = frame.get("unit", "PC").astype(str) if "unit" in frame else "PC"
+    result["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    result["status_flag"] = frame.get("status_flag", pd.Series(pd.NA, index=frame.index))
+    return result[columns].dropna(subset=["iso3", "year", "value"])
 
 
 def normalize_eurostat_migration(

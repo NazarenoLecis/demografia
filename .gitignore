@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.py[cod]
+output/
 output/data/raw/
 output/data/interim/
 output/cache/

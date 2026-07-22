@@ -4,7 +4,7 @@
 
 La pipeline interroga il catalogo SDMX e assegna i dataflow ai ruoli definiti in `demografia/istat_registry.py`. Il registro completo viene salvato in `istat_demographic_dataflows`.
 
-L'assegnazione automatica conserva punteggio e indicatore di ambiguità. Gli override passati dalla CLI hanno priorità.
+L'assegnazione automatica conserva punteggio e indicatore di ambiguita. Gli override configurati nello script hanno priorita.
 
 ## INPS
 
@@ -15,7 +15,7 @@ La pipeline usa le API ufficiali del DataCatalog INPS:
 - `current_package_list_with_resources`;
 - `status`.
 
-Il catalogo viene normalizzato a livello di risorsa. I dataset vengono classificati come pensionati, pensioni, contribuenti, assicurati o flussi di pensionamento. CSV, JSON, XLSX, XLS e XML sono letti in ordine di preferenza.
+Il catalogo viene normalizzato a livello di risorsa. I dataset vengono classificati come pensionati, pensioni, contribuenti, assicurati o flussi di pensionamento. CSV, JSON, XLSX, XLS, XML e ZIP sono letti in ordine di preferenza.
 
 Le tabelle finali mantengono distinti:
 
@@ -25,11 +25,11 @@ Le tabelle finali mantengono distinti:
 - contributi;
 - gestione o fondo;
 - categoria professionale ricostruibile dalla gestione;
-- sesso, età e territorio.
+- sesso, eta e territorio.
 
 ## Ragioneria Generale dello Stato
 
-La pipeline usa le API CKAN di OpenBDAP per cercare pacchetti e risorse relativi a pensioni, sistema pensionistico, proiezioni di medio-lungo periodo, sanità e assistenza di lungo periodo.
+La pipeline usa le API CKAN di OpenBDAP per cercare pacchetti e risorse relativi a pensioni, sistema pensionistico, proiezioni di medio-lungo periodo, sanita e assistenza di lungo periodo.
 
 Le tabelle vengono trasformate in formato lungo con:
 
@@ -37,7 +37,7 @@ Le tabelle vengono trasformate in formato lungo con:
 - anno;
 - scenario;
 - indicatore;
-- unità;
+- unita;
 - valore;
 - eventuali limiti inferiore e superiore.
 

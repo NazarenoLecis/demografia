@@ -30,11 +30,18 @@ def test_dependency_ratios_and_extended_bands():
     assert result["pop_0_14"] == 30
     assert result["pop_15_64"] == 100
     assert result["pop_15_74"] == 120
+    assert result["pop_20_39"] == 40
     assert result["pop_65_plus"] == 72
     assert result["pop_90_plus"] == 22
     assert result["dependency_youth"] == 30
     assert result["dependency_old"] == 72
     assert result["ageing_index_65_plus_per_100_youth"] == 240
+    assert result["active_replacement_60_64_per_100_15_19"] == 100
+    assert result["young_adult_to_late_life_ratio_20_39_per_60_79"] == 1
+    assert result["age_p10"] == 10
+    assert result["age_p25"] == 25
+    assert result["age_p75"] == 75
+    assert result["age_p90"] == 90
 
 
 def test_aggregate_age_classes_are_not_double_counted():

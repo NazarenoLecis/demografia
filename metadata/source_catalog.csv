@@ -1,6 +1,6 @@
 source,dataset,coverage,dimensions,role,status,notes
 ISTAT,SDMX demographic registry,Italy national regional provincial municipal,dataflow metadata,Automatic source mapping,implemented,Registry is rebuilt from the official ISTAT SDMX catalogue
-ISTAT,population_age_sex,Italy national regional provincial municipal,year age sex territory,Historical population and pyramids,implemented automatic,Dataflow selected by the ISTAT role registry
+ISTAT,population_age_sex,Italy national regional provincial municipal,year age sex territory,Historical population and kebab charts,implemented automatic,Dataflow selected by the ISTAT role registry
 ISTAT,demographic_balance,Italy national regional provincial municipal,year territory demographic component,Population balance,implemented automatic,Births deaths natural balance and migration
 ISTAT,births,Italy national regional provincial municipal,year territory mother age order citizenship,Births and fertility profiles,implemented automatic,Dataflow selected by the ISTAT role registry
 ISTAT,deaths,Italy national regional provincial municipal,year age sex territory,Deaths and mortality profiles,implemented automatic,Dataflow selected by the ISTAT role registry
@@ -14,7 +14,7 @@ INPS,contributors and insured workers,Italy national and territorial,year age se
 INPS,retirement flows,Italy national and territorial,year age sex management category,New retirement flows,implemented automatic,Datasets selected from the official catalogue
 RGS,OpenBDAP CKAN catalogue,Italy,dataset metadata resources,Discovery of RGS datasets,implemented,Official OpenBDAP package search and resource download
 RGS,medium and long-term projections,Italy,year scenario vintage indicator unit,Pension health and long-term care projections,implemented automatic,Resources selected from OpenBDAP searches and normalized
-Eurostat,demo_pjan,EU27 and European OECD countries,year age sex country,Historical population by age and sex,implemented,Primary harmonised source for EU pyramids
+Eurostat,demo_pjan,EU27 and European OECD countries,year age sex country,Historical population by age and sex,implemented,Primary harmonised source for EU kebab charts
 Eurostat,proj_23np,EU27 and European countries,year age sex country scenario,EUROPOP projections,implemented,All scenarios retained unless explicitly filtered
 Eurostat,demo_frate,EU27,year country fertility indicator,Fertility and mean age at childbirth,implemented,Normalized final table
 Eurostat,demo_gind,EU27,year country demographic component,Population balance,implemented,Normalized long and wide final tables
@@ -23,4 +23,4 @@ Eurostat,migr_emi4ctb,EU27,year age sex citizenship destination,Emigration profi
 Eurostat,migr_pop1ctz,EU27,year age sex citizenship,Migrant stock by citizenship,implemented,Citizenship kept separate from country of birth
 Eurostat,migr_pop3ctb,EU27,year age sex country of birth,Migrant stock by country of birth,implemented,Country of birth kept separate from citizenship
 World Bank,WDI,EU27 and OECD38,year country indicator,Harmonised international comparison panel,implemented,Covers the union of all EU27 and OECD38 members
-UN DESA,WPP 2024,world,year age sex country scenario,OECD extra-EU pyramids and projections,implemented automatic,Official WPP file is downloaded automatically
+UN DESA,WPP 2024,world,year age sex country scenario,OECD extra-EU kebab charts and projections,implemented automatic,Official WPP file is downloaded automatically

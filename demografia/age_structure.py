@@ -6,16 +6,20 @@ import pandas as pd
 AGE_BANDS = {
     "pop_0_4": (0, 4),
     "pop_0_14": (0, 14),
+    "pop_15_19": (15, 19),
     "pop_15_24": (15, 24),
     "pop_15_49": (15, 49),
     "pop_15_64": (15, 64),
     "pop_15_74": (15, 74),
+    "pop_20_39": (20, 39),
     "pop_20_64": (20, 64),
     "pop_20_69": (20, 69),
     "pop_25_49": (25, 49),
     "pop_25_64": (25, 64),
     "pop_50_64": (50, 64),
+    "pop_60_64": (60, 64),
     "pop_65_79": (65, 79),
+    "pop_60_79": (60, 79),
     "pop_65_plus": (65, 120),
     "pop_70_plus": (70, 120),
     "pop_75_plus": (75, 120),
@@ -103,7 +107,7 @@ def _band_sum(group: pd.DataFrame, lower: int, upper: int) -> float:
     return float(rows.sum()) if not rows.empty else np.nan
 
 
-def _weighted_median_age(group: pd.DataFrame) -> float:
+def _weighted_quantile_age(group: pd.DataFrame, quantile: float) -> float:
     if group.empty:
         return np.nan
     ordered = group.assign(
@@ -113,7 +117,11 @@ def _weighted_median_age(group: pd.DataFrame) -> float:
     if total <= 0:
         return np.nan
     cumulative = ordered["value"].cumsum()
-    return float(ordered.loc[cumulative.ge(total / 2), "age_mid"].iloc[0])
+    return float(ordered.loc[cumulative.ge(total * quantile), "age_mid"].iloc[0])
+
+
+def _weighted_median_age(group: pd.DataFrame) -> float:
+    return _weighted_quantile_age(group, 0.5)
 
 
 def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
@@ -141,6 +149,15 @@ def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
         row["population_male"] = male if male or female else np.nan
         row["population_female"] = female if male or female else np.nan
         row["sex_ratio_male_per_100_female"] = 100 * male / female if female else np.nan
+        for name, (lower, upper) in AGE_BANDS.items():
+            suffix = name.removeprefix("pop_")
+            male_band = _band_sum(group[group["sex"].eq("M")], lower, upper)
+            female_band = _band_sum(group[group["sex"].eq("F")], lower, upper)
+            row[f"sex_ratio_male_per_100_female_{suffix}"] = (
+                100 * male_band / female_band
+                if pd.notna(female_band) and female_band and pd.notna(male_band)
+                else np.nan
+            )
         row["women_15_49"] = (
             _band_sum(group[group["sex"].eq("F")], 15, 49) if female else np.nan
         )
@@ -169,6 +186,16 @@ def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
             if row["pop_70_plus"] and pd.notna(row["pop_20_69"])
             else np.nan
         )
+        row["active_replacement_60_64_per_100_15_19"] = (
+            100 * row["pop_60_64"] / row["pop_15_19"]
+            if row["pop_15_19"] and pd.notna(row["pop_60_64"])
+            else np.nan
+        )
+        row["young_adult_to_late_life_ratio_20_39_per_60_79"] = (
+            row["pop_20_39"] / row["pop_60_79"]
+            if row["pop_60_79"] and pd.notna(row["pop_20_39"])
+            else np.nan
+        )
         row["ageing_index_65_plus_per_100_youth"] = (
             100 * old / youth if youth and pd.notna(old) else np.nan
         )
@@ -177,7 +204,11 @@ def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
         row["mean_age"] = (
             float((midpoint * total_by_age["value"]).sum() / total) if total else np.nan
         )
+        row["age_p10"] = _weighted_quantile_age(total_by_age, 0.10)
+        row["age_p25"] = _weighted_quantile_age(total_by_age, 0.25)
         row["median_age"] = _weighted_median_age(total_by_age)
+        row["age_p75"] = _weighted_quantile_age(total_by_age, 0.75)
+        row["age_p90"] = _weighted_quantile_age(total_by_age, 0.90)
         row["age_min"] = int(total_by_age["age_low"].min()) if not total_by_age.empty else None
         row["age_max"] = int(total_by_age["age_high"].max()) if not total_by_age.empty else None
         row["age_classes"] = int(len(total_by_age))
@@ -205,7 +236,7 @@ def _select_plot_source(subset: pd.DataFrame, iso3: str) -> pd.DataFrame:
     return subset
 
 
-def build_pyramid(
+def build_kebab(
     population: pd.DataFrame,
     iso3: str,
     year: int,
@@ -226,9 +257,9 @@ def build_pyramid(
     if subset.empty:
         raise ValueError(f"Nessun dato per {iso3}, {year}")
     subset = atomic_population_rows(subset)
-    pyramid = subset.groupby(["age_low", "age_high", "sex"], as_index=False)["value"].sum()
+    kebab = subset.groupby(["age_low", "age_high", "sex"], as_index=False)["value"].sum()
     wide = (
-        pyramid.pivot(index=["age_low", "age_high"], columns="sex", values="value")
+        kebab.pivot(index=["age_low", "age_high"], columns="sex", values="value")
         .fillna(0)
         .reset_index()
     )

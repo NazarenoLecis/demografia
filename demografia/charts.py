@@ -7,11 +7,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.ticker import FuncFormatter
 
-from demografia.indicators import build_pyramid, cohort_heatmap
+from demografia.indicators import build_kebab, cohort_heatmap
 
 
-def plot_population_pyramid(
+def plot_population_kebab(
     population: pd.DataFrame,
     iso3: str,
     year: int,
@@ -19,19 +20,23 @@ def plot_population_pyramid(
     scenario: str | None = None,
     shares: bool = True,
 ) -> Path:
-    pyramid = build_pyramid(population, iso3, year, scenario=scenario)
-    male = -pyramid["male_share" if shares else "M"]
-    female = pyramid["female_share" if shares else "F"]
+    """Draw a mirrored age/sex distribution for a country and year.
+
+    The underlying demographic object is the usual age-sex distribution; the
+    public name used by this project is "kebab demografico".
+    """
+    kebab = build_kebab(population, iso3, year, scenario=scenario)
+    male = -kebab["male_share" if shares else "M"]
+    female = kebab["female_share" if shares else "F"]
 
     fig, ax = plt.subplots(figsize=(9, 9))
-    ax.barh(pyramid["age_label"], male, label="Uomini")
-    ax.barh(pyramid["age_label"], female, label="Donne")
+    ax.barh(kebab["age_label"], male, label="Uomini")
+    ax.barh(kebab["age_label"], female, label="Donne")
     ax.axvline(0, linewidth=0.8)
-    ax.set_title(f"Piramide demografica {iso3} - {year}")
+    ax.set_title(f"Kebab demografico {iso3} - {year}")
     ax.set_xlabel("Quota della popolazione (%)" if shares else "Popolazione")
     ax.set_ylabel("Età")
-    ticks = ax.get_xticks()
-    ax.set_xticklabels([f"{abs(tick):g}" for tick in ticks])
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{abs(value):g}"))
     ax.legend()
     fig.tight_layout()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -40,19 +45,20 @@ def plot_population_pyramid(
     return output
 
 
-def plot_pyramid_comparison(
+def plot_kebab_comparison(
     population: pd.DataFrame,
     iso3: str,
     years: Iterable[int],
     output: Path,
 ) -> Path:
+    """Compare total age distributions across multiple years."""
     years = list(years)
     fig, ax = plt.subplots(figsize=(10, 9))
     for year in years:
-        pyramid = build_pyramid(population, iso3, year)
-        total = pyramid[["M", "F"]].to_numpy().sum()
-        shares = 100 * (pyramid["M"] + pyramid["F"]) / total
-        ax.plot(shares, pyramid["age_label"], label=str(year))
+        kebab = build_kebab(population, iso3, year)
+        total = kebab[["M", "F"]].to_numpy().sum()
+        shares = 100 * (kebab["M"] + kebab["F"]) / total
+        ax.plot(shares, kebab["age_label"], label=str(year))
     ax.set_title(f"Evoluzione della distribuzione per età - {iso3}")
     ax.set_xlabel("Quota della popolazione (%)")
     ax.set_ylabel("Età")
@@ -103,30 +109,30 @@ def plot_indicator_comparison(
     return output
 
 
-def animate_population_pyramid(
+def animate_population_kebab(
     population: pd.DataFrame,
     iso3: str,
     years: Iterable[int],
     output: Path,
     fps: int = 4,
 ) -> Path:
+    """Create a GIF showing how the age/sex distribution changes over time."""
     years = list(years)
-    pyramids = {year: build_pyramid(population, iso3, year) for year in years}
+    kebabs = {year: build_kebab(population, iso3, year) for year in years}
     max_share = max(
         max(frame["male_share"].max(), frame["female_share"].max())
-        for frame in pyramids.values()
+        for frame in kebabs.values()
     )
-    first = pyramids[years[0]]
     fig, ax = plt.subplots(figsize=(9, 9))
 
     def update(year: int):
         ax.clear()
-        frame = pyramids[year]
+        frame = kebabs[year]
         ax.barh(frame["age_label"], -frame["male_share"], label="Uomini")
         ax.barh(frame["age_label"], frame["female_share"], label="Donne")
         ax.set_xlim(-max_share * 1.1, max_share * 1.1)
         ax.axvline(0, linewidth=0.8)
-        ax.set_title(f"Piramide demografica {iso3} - {year}")
+        ax.set_title(f"Kebab demografico {iso3} - {year}")
         ax.set_xlabel("Quota della popolazione (%)")
         ax.set_ylabel("Età")
         ax.legend()

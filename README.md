@@ -1,113 +1,61 @@
 # Demografia italiana
 
-Repository per analizzare struttura, evoluzione e proiezioni della popolazione italiana, con confronti estesi a tutti i paesi dell'Unione europea e dell'OECD.
+Repository autonomo per costruire dati e grafici sulla demografia italiana, con confronti UE e OECD.
 
-La pipeline completa usa direttamente le fonti ufficiali:
+La pipeline scarica, normalizza e controlla fonti statistiche ufficiali. Gli output sono pensati per analisi successive: tabelle Parquet/CSV, report di qualita e grafici salvati in `output/`.
 
-- ISTAT per popolazione, nascite, decessi, bilancio demografico, migrazioni interne e internazionali, popolazione straniera, territorio e proiezioni italiane;
-- INPS per pensionati, pensioni, contribuenti, assicurati e flussi di pensionamento;
-- Ragioneria Generale dello Stato e OpenBDAP per le proiezioni di medio-lungo periodo su pensioni, sanità, assistenza e altre voci collegate all'invecchiamento;
-- Eurostat per dati demografici armonizzati e proiezioni dei paesi UE;
-- UN World Population Prospects per serie per età e sesso e proiezioni dei paesi OECD extra-UE;
-- World Bank WDI per il pannello sintetico di indicatori comparabili UE-OECD.
+## Fonti
 
-## Analisi coperte
+- ISTAT: popolazione, nascite, decessi, bilancio demografico, migrazioni interne e internazionali, popolazione straniera, territorio e proiezioni italiane.
+- Eurostat: popolazione per eta e sesso, indicatori demografici armonizzati, flussi migratori, stock migratorio, titoli di studio e proiezioni UE.
+- UN World Population Prospects: popolazione per eta e sesso e proiezioni per i paesi OECD extra-UE.
+- World Bank WDI: indicatori comparabili UE-OECD.
+- INPS: pensionati, pensioni, contribuenti, assicurati e flussi di pensionamento.
+- Ragioneria Generale dello Stato/OpenBDAP: proiezioni di medio-lungo periodo su pensioni, sanita, assistenza e invecchiamento.
 
-- popolazione per singolo anno di età e sesso;
-- piramidi demografiche storiche e proiettate;
+## Analisi Coperte
+
+- popolazione per anno, eta e sesso;
+- kebab demografico storico e proiettato con uomini e donne;
 - evoluzione delle coorti;
-- fasce di età, età media e mediana;
-- fertilità, natalità, decessi e saldo naturale;
+- eta media, eta mediana e distribuzione per fasce di eta;
+- fertilita, natalita, decessi e saldo naturale;
 - immigrazione, emigrazione e saldo migratorio;
-- migrazioni interne con saldi territoriali e matrici origine-destinazione;
-- residenti per cittadinanza e paese di nascita;
-- struttura territoriale regionale, provinciale e comunale;
-- rapporti di dipendenza demografica;
+- stock per cittadinanza e paese di nascita;
+- distribuzione per titolo di studio da Eurostat LFS;
+- struttura territoriale regionale, provinciale e comunale quando disponibile;
+- tasso di dipendenza degli anziani e altri rapporti di dipendenza;
 - pensionati, pensioni, contribuenti e assicurati INPS;
-- rapporto tra contribuenti, pensionati e popolazione anziana;
-- proiezioni RGS della spesa pensionistica, sanitaria e assistenziale;
-- confronto Italia-UE27-OECD38;
-- scenari e diverse edizioni delle proiezioni;
-- controlli di qualità e copertura delle fonti.
+- proiezioni demografiche e proiezioni RGS;
+- controlli di qualita e copertura delle fonti.
 
-## Installazione
+## Uso Da VS Code
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-```
+1. Aprire la cartella del repository in VS Code.
+2. Creare un ambiente Python con il comando VS Code `Python: Create Environment`.
+3. Selezionare `pyproject.toml` o `requirements.txt` quando VS Code chiede le dipendenze.
+4. Aprire uno script in `scripts/`.
+5. Modificare la sezione `Configurazione per VS Code` in cima al file.
+6. Usare `Run Python File`.
 
-Su Windows:
+Ogni script contiene la propria configurazione in cima al file ed espone una funzione `main(...)` con parametri espliciti, quindi puo essere lanciato da VS Code, importato in notebook o richiamato da test.
 
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e ".[dev]"
-```
+## Script Principali
 
-## Pipeline completa
+- `scripts/run_official_pipeline.py`: pipeline completa con Eurostat, WPP, World Bank, ISTAT, INPS e RGS/OpenBDAP.
+- `scripts/run_pipeline.py`: pipeline internazionale piu leggera con Eurostat, WPP e World Bank.
+- `scripts/check_sources.py`: controllo rapido delle fonti internazionali.
+- `scripts/check_official_sources.py`: controllo rapido di ISTAT, INPS e RGS/OpenBDAP.
+- `scripts/discover_istat_registry.py`: costruzione del registro dei dataflow demografici ISTAT.
+- `scripts/download_wpp.py`: download del file WPP per eta e sesso.
 
-```bash
-python scripts/run_official_pipeline.py \
-  --start-year 1960 \
-  --end-year 2026 \
-  --projection-end 2100 \
-  --include-migration \
-  --auto-wpp
-```
+## Roadmap
 
-Il comando:
+La roadmap in `docs/roadmap.md` elenca aree gia implementate, priorita dati e fonti candidate per mortalita, famiglie, AIRE, istruzione territoriale, migrazioni interne avanzate, territorio e generazioni.
 
-1. esegue la pipeline Eurostat, OECD e WPP;
-2. interroga il catalogo SDMX ISTAT e assegna i dataflow ai blocchi demografici;
-3. scarica e normalizza i dataset ISTAT selezionati;
-4. interroga il catalogo ufficiale INPS e seleziona i dataset demografico-previdenziali;
-5. interroga OpenBDAP/RGS per le proiezioni di medio-lungo periodo;
-6. costruisce le tabelle finali e il pannello integrato italiano;
-7. produce report di copertura, qualità e stato delle fonti.
+Gli script partono da un profilo quickstart Italia: 2020-2024, proiezioni fino al 2030, scenario baseline, `EU_GEOS = ("IT",)`, `COMPARISON_COUNTRIES = ("ITA",)` e `AUTO_WPP = False`. Per estendere il confronto a UE/OECD o produrre serie storiche lunghe basta modificare quei valori nella sezione di configurazione.
 
-Per interrompere l'esecuzione quando una fonte obbligatoria non viene acquisita:
-
-```bash
-python scripts/run_official_pipeline.py --strict
-```
-
-Quando il catalogo ISTAT restituisce più dataflow con lo stesso punteggio, la pipeline usa il primo candidato ordinato e registra l'ambiguità. Un dataflow può essere fissato esplicitamente:
-
-```bash
-python scripts/run_official_pipeline.py \
-  --istat-override population_age_sex=DATAFLOW_ID \
-  --istat-override internal_migration=DATAFLOW_ID
-```
-
-## Pipeline internazionale più leggera
-
-```bash
-python scripts/run_pipeline.py \
-  --start-year 1960 \
-  --end-year 2026 \
-  --projection-end 2100 \
-  --include-migration \
-  --auto-wpp
-```
-
-## Verifica delle fonti
-
-```bash
-python scripts/check_sources.py
-python scripts/check_official_sources.py
-```
-
-## Test
-
-```bash
-ruff check .
-python -m compileall -q demografia scripts
-pytest
-```
-
-## Output principali
+## Output Principali
 
 ```text
 output/data/final/
@@ -115,6 +63,7 @@ output/data/final/
   age_structure_indicators.*
   fertility_indicators.*
   demographic_balance.*
+  education_attainment.*
   immigration_profile.*
   emigration_profile.*
   migration_summary.*
@@ -147,16 +96,23 @@ output/data/final/
   official_source_status.*
   official_quality_report.*
   quality_report.*
+
+output/charts/
+  kebab_ita_<anno>.png
+  kebab_ita_storico.gif
+  coorti_ita.png
 ```
 
-## Criteri metodologici
+## Convenzioni Del Repo
 
-Le persone e i trattamenti pensionistici restano separati. Un pensionato può ricevere più pensioni.
+- i moduli espongono funzioni parametrizzate;
+- la configurazione vive negli script e nelle funzioni `main(...)`;
+- il package usa namespace package Python;
+- funzioni generali in `demografia/utils.py`;
+- fonti osservate, stime campionarie e proiezioni restano separate;
+- persone e trattamenti pensionistici restano separati;
+- cittadinanza, paese di nascita, provenienza e destinazione non sono variabili intercambiabili.
 
-Cittadinanza, paese di nascita, precedente residenza e paese di destinazione restano dimensioni distinte.
+## Qualita
 
-I dati osservati e le proiezioni restano separati. Ogni proiezione conserva fonte, scenario ed edizione quando disponibili.
-
-I rapporti demografici usano la popolazione per età. I rapporti previdenziali usano contribuenti, assicurati, pensionati e pensioni INPS. Il pannello integrato mantiene visibili entrambi i numeratori e denominatori.
-
-La disponibilità dei dati non viene trattata come un limite metodologico. `official_source_status` distingue un dato realmente assente da un problema operativo di download, formato, mapping o variazione dell'endpoint.
+La suite usa `pytest` e puo essere lanciata dal pannello Testing di VS Code dopo la selezione dell'ambiente Python del repository.

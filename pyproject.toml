@@ -25,6 +25,7 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [tool.setuptools.packages.find]
 include = ["demografia*"]
+namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -32,3 +33,6 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 110
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]

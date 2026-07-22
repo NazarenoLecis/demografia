@@ -5,6 +5,7 @@ from demografia.final_tables import (
     build_migration_summary,
     enrich_population_schema,
     normalize_eurostat_demographic_balance,
+    normalize_eurostat_education_attainment,
     normalize_eurostat_fertility,
     normalize_eurostat_migration,
 )
@@ -55,6 +56,26 @@ def test_migration_summary():
         normalize_eurostat_migration(raw_out, "emigration"),
     )
     assert summary.iloc[0]["net_migration"] == 6
+
+
+def test_education_attainment_normalization():
+    raw = pd.DataFrame(
+        {
+            "geo": ["IT"],
+            "time": [2024],
+            "age": ["Y25-64"],
+            "sex": ["T"],
+            "isced11": ["ED5-8"],
+            "isced11_label": ["Tertiary education (levels 5-8)"],
+            "unit": ["PC"],
+            "value": [22.3],
+            "dataset": ["edat_lfse_03"],
+        }
+    )
+    result = normalize_eurostat_education_attainment(raw)
+    assert result.iloc[0]["iso3"] == "ITA"
+    assert result.iloc[0]["age_low"] == 25
+    assert result.iloc[0]["education_level"] == "tertiary"
 
 
 def test_central_population_schema():

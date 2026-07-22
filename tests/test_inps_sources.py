@@ -1,7 +1,7 @@
 import pandas as pd
 
 from demografia.inps import build_inps_support_indicators, discover_inps_roles, normalize_inps_table
-from demografia.sources.inps import InpsClient
+from demografia.sources.inps import select_resources
 
 
 def test_inps_catalog_role_discovery_and_resource_selection():
@@ -37,7 +37,7 @@ def test_inps_catalog_role_discovery_and_resource_selection():
     )
     matches = discover_inps_roles(catalog, max_per_role=3)
     assert {"pensioners", "insured_workers"}.issubset(set(matches["role"]))
-    selected = InpsClient.select_resources(matches)
+    selected = select_resources(matches)
     assert set(selected["dataset_id"]) == {"1", "2"}
 
 

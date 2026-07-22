@@ -1,75 +1,102 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+import sys
 
-from demografia.official_pipeline import OfficialPipelineOptions, run_official_pipeline
-from demografia.pipeline import PipelineOptions
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-
-def _overrides(values: list[str]) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for value in values:
-        role, separator, dataflow = value.partition("=")
-        if not separator or not role.strip() or not dataflow.strip():
-            raise argparse.ArgumentTypeError("Gli override ISTAT devono avere forma ruolo=dataflow")
-        result[role.strip()] = dataflow.strip()
-    return result
+from demografia.official_pipeline import official_pipeline_options, run_official_pipeline
+from demografia.pipeline import pipeline_options
+from demografia.utils import print_outputs
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Esegue la pipeline completa con ISTAT, INPS, RGS, Eurostat, OECD e WPP"
+# Configurazione per VS Code.
+# Questo script usa tutte le fonti ufficiali disponibili e produce le tabelle finali.
+START_YEAR = 2020
+END_YEAR = 2024
+PROJECTION_END = 2030
+REFRESH = False
+INCLUDE_MIGRATION = True
+AUTO_WPP = False
+WPP_AGE_SEX: Path | None = None
+WPP_URL: str | None = None
+WPP_SCALE = 1000.0
+MAKE_ANIMATION = False
+GENERATE_ALL_COUNTRY_KEBABS = False
+EU_GEOS = ("IT",)
+COMPARISON_COUNTRIES = ("ITA",)
+PROJECTION_SCENARIO: str | None = "BSL"
+
+INCLUDE_ISTAT = True
+INCLUDE_INPS = True
+INCLUDE_RGS = True
+STRICT = False
+ISTAT_OVERRIDES: dict[str, str] = {}
+ISTAT_KEY = "all"
+INPS_MAX_PAGES: int | None = 30
+INPS_DATASETS_PER_ROLE = 2
+
+
+def main(
+    start_year: int = START_YEAR,
+    end_year: int = END_YEAR,
+    projection_end: int = PROJECTION_END,
+    refresh: bool = REFRESH,
+    include_migration: bool = INCLUDE_MIGRATION,
+    auto_wpp: bool = AUTO_WPP,
+    wpp_age_sex: Path | None = WPP_AGE_SEX,
+    wpp_url: str | None = WPP_URL,
+    wpp_scale: float = WPP_SCALE,
+    make_animation: bool = MAKE_ANIMATION,
+    generate_all_country_kebabs: bool = GENERATE_ALL_COUNTRY_KEBABS,
+    eu_geos: tuple[str, ...] = EU_GEOS,
+    comparison_countries: tuple[str, ...] = COMPARISON_COUNTRIES,
+    projection_scenario: str | None = PROJECTION_SCENARIO,
+    include_istat: bool = INCLUDE_ISTAT,
+    include_inps: bool = INCLUDE_INPS,
+    include_rgs: bool = INCLUDE_RGS,
+    strict: bool = STRICT,
+    istat_overrides: dict[str, str] | None = None,
+    istat_key: str = ISTAT_KEY,
+    inps_max_pages: int | None = INPS_MAX_PAGES,
+    inps_datasets_per_role: int = INPS_DATASETS_PER_ROLE,
+) -> dict[str, Path]:
+    """Run the complete official-source pipeline.
+
+    The base block controls common demographic extraction settings. The official
+    block enables or disables ISTAT, INPS, and RGS/OpenBDAP integrations.
+    """
+    base = pipeline_options(
+        start_year=start_year,
+        end_year=end_year,
+        projection_end=projection_end,
+        refresh=refresh,
+        include_migration=include_migration,
+        auto_wpp=auto_wpp,
+        wpp_age_sex=wpp_age_sex,
+        wpp_url=wpp_url,
+        wpp_scale=wpp_scale,
+        make_animation=make_animation,
+        generate_all_country_kebabs=generate_all_country_kebabs,
+        eu_geos=eu_geos,
+        comparison_countries=comparison_countries,
+        projection_scenario=projection_scenario,
     )
-    parser.add_argument("--start-year", type=int, default=1960)
-    parser.add_argument("--end-year", type=int, default=2026)
-    parser.add_argument("--projection-end", type=int, default=2100)
-    parser.add_argument("--refresh", action="store_true")
-    parser.add_argument("--include-migration", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--auto-wpp", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--wpp-age-sex", type=Path)
-    parser.add_argument("--wpp-url")
-    parser.add_argument("--wpp-scale", type=float, default=1000.0)
-    parser.add_argument("--make-animation", action="store_true")
-    parser.add_argument("--all-country-pyramids", action="store_true")
-    parser.add_argument("--no-istat", action="store_true")
-    parser.add_argument("--no-inps", action="store_true")
-    parser.add_argument("--no-rgs", action="store_true")
-    parser.add_argument("--strict", action="store_true")
-    parser.add_argument("--istat-key", default="all")
-    parser.add_argument("--istat-override", action="append", default=[])
-    parser.add_argument("--inps-max-pages", type=int, default=30)
-    parser.add_argument("--inps-datasets-per-role", type=int, default=2)
-    return parser.parse_args()
+    options = official_pipeline_options(
+        base=base,
+        include_istat=include_istat,
+        include_inps=include_inps,
+        include_rgs=include_rgs,
+        strict=strict,
+        istat_overrides=istat_overrides or ISTAT_OVERRIDES,
+        istat_key=istat_key,
+        inps_max_pages=inps_max_pages,
+        inps_datasets_per_role=inps_datasets_per_role,
+    )
+    return run_official_pipeline(options)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    base = PipelineOptions(
-        start_year=args.start_year,
-        end_year=args.end_year,
-        projection_end=args.projection_end,
-        refresh=args.refresh,
-        include_migration=args.include_migration,
-        auto_wpp=args.auto_wpp,
-        wpp_age_sex=args.wpp_age_sex,
-        wpp_url=args.wpp_url,
-        wpp_scale=args.wpp_scale,
-        make_animation=args.make_animation,
-        generate_all_country_pyramids=args.all_country_pyramids,
-    )
-    outputs = run_official_pipeline(
-        OfficialPipelineOptions(
-            base=base,
-            include_istat=not args.no_istat,
-            include_inps=not args.no_inps,
-            include_rgs=not args.no_rgs,
-            strict=args.strict,
-            istat_overrides=_overrides(args.istat_override),
-            istat_key=args.istat_key,
-            inps_max_pages=args.inps_max_pages,
-            inps_datasets_per_role=args.inps_datasets_per_role,
-        )
-    )
-    for name, path in outputs.items():
-        print(f"{name}: {path}")
+    print_outputs(main())

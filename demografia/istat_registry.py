@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import pandas as pd
 
-from demografia.sources.istat import IstatClient
+from demografia.sources import istat
 
 ROLE_RULES: dict[str, dict[str, tuple[str, ...]]] = {
     "population_age_sex": {
@@ -48,17 +46,6 @@ ROLE_RULES: dict[str, dict[str, tuple[str, ...]]] = {
         "excluded": (),
     },
 }
-
-
-@dataclass(frozen=True)
-class IstatRoleMatch:
-    role: str
-    dataflow_id: str
-    name: str
-    agency: str
-    version: str
-    score: int
-    ambiguous: bool
 
 
 def _text(frame: pd.DataFrame) -> pd.Series:
@@ -114,11 +101,11 @@ def score_istat_dataflows(dataflows: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(outputs, ignore_index=True) if outputs else pd.DataFrame(columns=columns)
 
 
-def build_istat_registry(client: IstatClient | None = None) -> pd.DataFrame:
-    return score_istat_dataflows((client or IstatClient()).dataflows())
+def build_istat_registry(dataflows_frame: pd.DataFrame | None = None) -> pd.DataFrame:
+    return score_istat_dataflows(istat.dataflows() if dataflows_frame is None else dataflows_frame)
 
 
-def resolve_istat_role(registry: pd.DataFrame, role: str) -> IstatRoleMatch:
+def resolve_istat_role(registry: pd.DataFrame, role: str) -> dict[str, object]:
     candidates = registry[registry["role"].eq(role) & registry["selected"]].copy()
     if candidates.empty:
         raise LookupError(f"Nessun dataflow ISTAT risolto per il ruolo {role}")
@@ -126,12 +113,12 @@ def resolve_istat_role(registry: pd.DataFrame, role: str) -> IstatRoleMatch:
         identifiers = ", ".join(candidates["dataflow_id"].astype(str))
         raise LookupError(f"Risoluzione ISTAT ambigua per {role}: {identifiers}")
     row = candidates.iloc[0]
-    return IstatRoleMatch(
-        role=role,
-        dataflow_id=str(row["dataflow_id"]),
-        name=str(row["name"]),
-        agency=str(row["agency"] or "IT1"),
-        version=str(row["version"] or "latest"),
-        score=int(row["score"]),
-        ambiguous=False,
-    )
+    return {
+        "role": role,
+        "dataflow_id": str(row["dataflow_id"]),
+        "name": str(row["name"]),
+        "agency": str(row["agency"] or "IT1"),
+        "version": str(row["version"] or "latest"),
+        "score": int(row["score"]),
+        "ambiguous": False,
+    }
