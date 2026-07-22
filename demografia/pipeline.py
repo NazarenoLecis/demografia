@@ -14,7 +14,6 @@ from demografia.config import (
     EU_OECD_ISO3,
     FINAL_DIR,
     INPUT_DIR,
-    ITALY_NUTS2,
     OECD38_ISO3,
     RAW_DIR,
     ensure_directories,
@@ -58,7 +57,9 @@ DEFAULT_PIPELINE_OPTIONS: dict[str, Any] = {
     "istat_key": "all",
     "make_animation": False,
     "eu_geos": EU27_ISO2,
-    "regional_geos": ITALY_NUTS2,
+    "regional_country_prefix": "IT",
+    "regional_levels": ("nuts2", "nuts3"),
+    "regional_geos": None,
     "migration_geos": None,
     "comparison_countries": EU_OECD_ISO3,
     "projection_scenario": None,
@@ -77,7 +78,9 @@ def pipeline_options(**overrides: Any) -> dict[str, Any]:
     if options["wpp_age_sex"] is not None:
         options["wpp_age_sex"] = Path(options["wpp_age_sex"])
     options["eu_geos"] = tuple(options["eu_geos"])
-    options["regional_geos"] = tuple(options["regional_geos"])
+    options["regional_levels"] = tuple(options["regional_levels"])
+    if options["regional_geos"] is not None:
+        options["regional_geos"] = tuple(options["regional_geos"])
     options["migration_geos"] = tuple(options["migration_geos"] or options["eu_geos"])
     options["comparison_countries"] = tuple(options["comparison_countries"])
     return options
@@ -119,11 +122,13 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
     fertility_raw = eurostat.fertility(
         geos=options["eu_geos"],
         start_year=options["start_year"],
+        end_year=options["end_year"],
         refresh=options["refresh"],
     )
     balance_raw = eurostat.demographic_balance(
         geos=options["eu_geos"],
         start_year=options["start_year"],
+        end_year=options["end_year"],
         refresh=options["refresh"],
     )
     education_raw = eurostat.education_attainment(
@@ -236,20 +241,38 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
         outputs["italy_territorial_structure"] = FINAL_DIR / "italy_territorial_age_structure.parquet"
 
     if options["include_regional"]:
-        regional_population_raw = eurostat.regional_population_age_groups(
-            geos=options["regional_geos"],
-            start_year=options["start_year"],
-            end_year=options["end_year"],
-            refresh=options["refresh"],
-        )
+        territorial_geos = options["regional_geos"]
+        if territorial_geos is None:
+            territorial_geos = eurostat.territorial_geos(
+                country_prefix=options["regional_country_prefix"],
+                levels=options["regional_levels"],
+                reference_year=options["end_year"],
+                refresh=options["refresh"],
+            )
+        territorial_geos = tuple(territorial_geos)
+
+        # Eurostat population by age group is published at NUTS2 level in this
+        # table. Balance and fertility are available at NUTS3 as well, so they
+        # keep the full territorial list discovered above.
+        population_geos = tuple(geo for geo in territorial_geos if len(str(geo)) == 4)
+
+        if population_geos:
+            regional_population_raw = eurostat.regional_population_age_groups(
+                geos=population_geos,
+                start_year=options["start_year"],
+                end_year=options["end_year"],
+                refresh=options["refresh"],
+            )
+        else:
+            regional_population_raw = pd.DataFrame()
         regional_balance_raw = eurostat.regional_demographic_balance(
-            geos=options["regional_geos"],
+            geos=territorial_geos,
             start_year=options["start_year"],
             end_year=options["end_year"],
             refresh=options["refresh"],
         )
         regional_fertility_raw = eurostat.regional_fertility(
-            geos=options["regional_geos"],
+            geos=territorial_geos,
             start_year=options["start_year"],
             end_year=options["end_year"],
             refresh=options["refresh"],

@@ -107,6 +107,26 @@ def test_regional_population_normalization():
     assert result.iloc[0]["age_high"] == 4
 
 
+def test_nuts3_population_normalization_uses_province_level():
+    raw = pd.DataFrame(
+        {
+            "geo": ["ITC11"],
+            "geo_label": ["Torino"],
+            "time": [2024],
+            "age": ["Y_LT5"],
+            "sex": ["T"],
+            "unit": ["NR"],
+            "value": [42000],
+            "dataset": ["demo_r_pjangroup"],
+        }
+    )
+    result = normalize_eurostat_regional_population(raw)
+    assert result.iloc[0]["geo_level"] == "province"
+    assert result.iloc[0]["geo_code"] == "ITC11"
+    assert result.iloc[0]["geo_name"] == "Torino"
+    assert result.iloc[0]["iso3"] == "ITA"
+
+
 def test_central_population_schema():
     population = pd.DataFrame(
         {

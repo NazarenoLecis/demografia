@@ -59,6 +59,8 @@ def fetch(
             cache_dir=CACHE_DIR / "eurostat" / dataset,
             refresh=refresh,
         )
+        if isinstance(payload, dict) and "error" in payload and "id" not in payload:
+            continue
         frame = jsonstat_to_frame(payload)
         if not frame.empty:
             frame["dataset"] = dataset
@@ -66,6 +68,40 @@ def fetch(
             frames.append(frame)
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def territorial_geos(
+    country_prefix: str = "IT",
+    levels: Iterable[str] = ("nuts2", "nuts3"),
+    reference_year: int | None = None,
+    refresh: bool = False,
+) -> tuple[str, ...]:
+    """Return Eurostat NUTS codes for one country and one or more levels.
+
+    Eurostat regional tables evolve when territorial boundaries are updated.
+    This helper discovers the available geography codes from the demographic
+    balance table instead of storing a long static list. `country_prefix`
+    selects the country code prefix, while `levels` accepts Eurostat values
+    such as `nuts2` and `nuts3`. When `reference_year` is provided, the lookup
+    is restricted to that year so the returned geographies match the latest
+    period used by the analytical pipeline.
+    """
+    discovered: list[str] = []
+    for level in levels:
+        frame = fetch(
+            EUROSTAT_DATASETS["regional_demographic_balance"],
+            filters={"geoLevel": level},
+            start_year=reference_year,
+            end_year=reference_year,
+            refresh=refresh,
+            chunk_size=100,
+        )
+        if frame.empty or "geo" not in frame:
+            continue
+        for code in frame["geo"].dropna().astype(str).drop_duplicates():
+            if code.startswith(country_prefix):
+                discovered.append(code)
+    return tuple(dict.fromkeys(discovered))
 
 
 def population_age_sex(
@@ -113,6 +149,7 @@ def projections(
 def fertility(
     geos: Iterable[str] = EU27_ISO2,
     start_year: int = 1960,
+    end_year: int | None = None,
     refresh: bool = False,
     chunk_size: int = 5,
 ) -> pd.DataFrame:
@@ -120,6 +157,7 @@ def fertility(
         EUROSTAT_DATASETS["fertility"],
         filters={"geo": tuple(geos)},
         start_year=start_year,
+        end_year=end_year,
         refresh=refresh,
         chunk_size=chunk_size,
     )
@@ -128,6 +166,7 @@ def fertility(
 def demographic_balance(
     geos: Iterable[str] = EU27_ISO2,
     start_year: int = 1960,
+    end_year: int | None = None,
     refresh: bool = False,
     chunk_size: int = 5,
 ) -> pd.DataFrame:
@@ -135,6 +174,7 @@ def demographic_balance(
         EUROSTAT_DATASETS["demographic_balance"],
         filters={"geo": tuple(geos)},
         start_year=start_year,
+        end_year=end_year,
         refresh=refresh,
         chunk_size=chunk_size,
     )
@@ -145,7 +185,7 @@ def regional_population_age_groups(
     start_year: int = 1990,
     end_year: int | None = None,
     refresh: bool = False,
-    chunk_size: int = 5,
+    chunk_size: int = 30,
 ) -> pd.DataFrame:
     """Fetch NUTS2 population by five-year age group and sex."""
     return fetch(
@@ -163,9 +203,9 @@ def regional_demographic_balance(
     start_year: int = 1990,
     end_year: int | None = None,
     refresh: bool = False,
-    chunk_size: int = 5,
+    chunk_size: int = 30,
 ) -> pd.DataFrame:
-    """Fetch NUTS2 demographic balance indicators."""
+    """Fetch NUTS2 or NUTS3 demographic balance indicators."""
     return fetch(
         EUROSTAT_DATASETS["regional_demographic_balance"],
         filters={"geo": tuple(geos)},
@@ -181,9 +221,9 @@ def regional_fertility(
     start_year: int = 1990,
     end_year: int | None = None,
     refresh: bool = False,
-    chunk_size: int = 5,
+    chunk_size: int = 30,
 ) -> pd.DataFrame:
-    """Fetch NUTS2 fertility indicators."""
+    """Fetch NUTS2 or NUTS3 fertility indicators."""
     return fetch(
         EUROSTAT_DATASETS["regional_fertility"],
         filters={"geo": tuple(geos)},

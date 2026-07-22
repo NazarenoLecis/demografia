@@ -8,13 +8,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from demografia.pipeline import pipeline_options, run_pipeline
-from demografia.config import EU27_ISO2, EU_OECD_ISO3, ITALY_NUTS2
+from demografia.config import EU27_ISO2, EU_OECD_ISO3
 from demografia.utils import print_outputs
 
 
 # Configurazione per VS Code.
 # Aprire questo file, modificare i valori se necessario e usare "Run Python File".
-START_YEAR = 1990
+START_YEAR = 1960
 END_YEAR = 2024
 PROJECTION_END = 2050
 REFRESH = False
@@ -29,7 +29,9 @@ ISTAT_POPULATION_DATAFLOW: str | None = None
 ISTAT_KEY = "all"
 MAKE_ANIMATION = False
 EU_GEOS = EU27_ISO2
-REGIONAL_GEOS = ITALY_NUTS2
+REGIONAL_COUNTRY_PREFIX = "IT"
+REGIONAL_LEVELS = ("nuts2", "nuts3")
+REGIONAL_GEOS: tuple[str, ...] | None = None
 MIGRATION_GEOS = ("IT",)
 COMPARISON_COUNTRIES = EU_OECD_ISO3
 PROJECTION_SCENARIO: str | None = "BSL"
@@ -52,7 +54,9 @@ def main(
     istat_key: str = ISTAT_KEY,
     make_animation: bool = MAKE_ANIMATION,
     eu_geos: tuple[str, ...] = EU_GEOS,
-    regional_geos: tuple[str, ...] = REGIONAL_GEOS,
+    regional_country_prefix: str = REGIONAL_COUNTRY_PREFIX,
+    regional_levels: tuple[str, ...] = REGIONAL_LEVELS,
+    regional_geos: tuple[str, ...] | None = REGIONAL_GEOS,
     migration_geos: tuple[str, ...] = MIGRATION_GEOS,
     comparison_countries: tuple[str, ...] = COMPARISON_COUNTRIES,
     projection_scenario: str | None = PROJECTION_SCENARIO,
@@ -79,6 +83,8 @@ def main(
         istat_key=istat_key,
         make_animation=make_animation,
         eu_geos=eu_geos,
+        regional_country_prefix=regional_country_prefix,
+        regional_levels=regional_levels,
         regional_geos=regional_geos,
         migration_geos=migration_geos,
         comparison_countries=comparison_countries,

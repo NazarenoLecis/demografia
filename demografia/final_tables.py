@@ -104,7 +104,22 @@ def _age_columns(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
 
 def _eurostat_geo_metadata(frame: pd.DataFrame, geo_col: str) -> pd.DataFrame:
     metadata = pd.DataFrame(index=frame.index)
-    metadata["geo_level"] = np.where(frame[geo_col].astype(str).str.len().gt(2), "region", "country")
+    code_length = frame[geo_col].astype(str).str.len()
+    metadata["geo_level"] = np.select(
+        [
+            code_length.le(2),
+            code_length.eq(3),
+            code_length.eq(4),
+            code_length.ge(5),
+        ],
+        [
+            "country",
+            "macro_region",
+            "region",
+            "province",
+        ],
+        default="territory",
+    )
     metadata["geo_code"] = frame[geo_col].astype(str)
     label_col = f"{geo_col}_label"
     metadata["geo_name"] = (
@@ -112,10 +127,11 @@ def _eurostat_geo_metadata(frame: pd.DataFrame, geo_col: str) -> pd.DataFrame:
         if label_col in frame
         else metadata["geo_code"].map(COUNTRY_NAMES).fillna(metadata["geo_code"])
     )
+    country_code = frame[geo_col].astype(str).str.slice(0, 2)
     metadata["iso3"] = np.where(
-        metadata["geo_level"].eq("region"),
-        "ITA",
+        metadata["geo_level"].eq("country"),
         _iso3(frame[geo_col]),
+        _iso3(country_code),
     )
     return metadata
 
