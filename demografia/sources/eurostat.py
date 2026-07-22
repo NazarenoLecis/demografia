@@ -5,7 +5,13 @@ from typing import Any
 
 import pandas as pd
 
-from demografia.config import CACHE_DIR, EDUCATION_ATTAINMENT_AGE_GROUPS, EU27_ISO2, EUROSTAT_DATASETS
+from demografia.config import (
+    CACHE_DIR,
+    EDUCATION_ATTAINMENT_AGE_GROUPS,
+    EU27_ISO2,
+    EUROSTAT_DATASETS,
+    ITALY_NUTS2,
+)
 from demografia.http import get_json
 from demografia.jsonstat import jsonstat_to_frame
 from demografia.utils import chunks
@@ -129,6 +135,60 @@ def demographic_balance(
         EUROSTAT_DATASETS["demographic_balance"],
         filters={"geo": tuple(geos)},
         start_year=start_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
+def regional_population_age_groups(
+    geos: Iterable[str] = ITALY_NUTS2,
+    start_year: int = 1990,
+    end_year: int | None = None,
+    refresh: bool = False,
+    chunk_size: int = 5,
+) -> pd.DataFrame:
+    """Fetch NUTS2 population by five-year age group and sex."""
+    return fetch(
+        EUROSTAT_DATASETS["regional_population_age_groups"],
+        filters={"geo": tuple(geos), "sex": ("T", "M", "F"), "unit": "NR"},
+        start_year=start_year,
+        end_year=end_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
+def regional_demographic_balance(
+    geos: Iterable[str] = ITALY_NUTS2,
+    start_year: int = 1990,
+    end_year: int | None = None,
+    refresh: bool = False,
+    chunk_size: int = 5,
+) -> pd.DataFrame:
+    """Fetch NUTS2 demographic balance indicators."""
+    return fetch(
+        EUROSTAT_DATASETS["regional_demographic_balance"],
+        filters={"geo": tuple(geos)},
+        start_year=start_year,
+        end_year=end_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
+def regional_fertility(
+    geos: Iterable[str] = ITALY_NUTS2,
+    start_year: int = 1990,
+    end_year: int | None = None,
+    refresh: bool = False,
+    chunk_size: int = 5,
+) -> pd.DataFrame:
+    """Fetch NUTS2 fertility indicators."""
+    return fetch(
+        EUROSTAT_DATASETS["regional_fertility"],
+        filters={"geo": tuple(geos)},
+        start_year=start_year,
+        end_year=end_year,
         refresh=refresh,
         chunk_size=chunk_size,
     )

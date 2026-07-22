@@ -8,7 +8,14 @@ from demografia.final_tables import (
     normalize_eurostat_education_attainment,
     normalize_eurostat_fertility,
     normalize_eurostat_migration,
+    normalize_eurostat_regional_population,
 )
+from demografia.transform import parse_age_code
+
+
+def test_parse_less_than_age_codes():
+    assert parse_age_code("Y_LT5") == (0, 4)
+    assert parse_age_code("Y_LT15") == (0, 14)
 
 
 def test_fertility_normalization():
@@ -76,6 +83,28 @@ def test_education_attainment_normalization():
     assert result.iloc[0]["iso3"] == "ITA"
     assert result.iloc[0]["age_low"] == 25
     assert result.iloc[0]["education_level"] == "tertiary"
+
+
+def test_regional_population_normalization():
+    raw = pd.DataFrame(
+        {
+            "geo": ["ITC1"],
+            "geo_label": ["Piemonte"],
+            "time": [2024],
+            "age": ["Y_LT5"],
+            "sex": ["T"],
+            "unit": ["NR"],
+            "value": [135610],
+            "dataset": ["demo_r_pjangroup"],
+        }
+    )
+    result = normalize_eurostat_regional_population(raw)
+    assert result.iloc[0]["geo_level"] == "region"
+    assert result.iloc[0]["geo_code"] == "ITC1"
+    assert result.iloc[0]["geo_name"] == "Piemonte"
+    assert result.iloc[0]["iso3"] == "ITA"
+    assert result.iloc[0]["age_low"] == 0
+    assert result.iloc[0]["age_high"] == 4
 
 
 def test_central_population_schema():

@@ -4,6 +4,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from demografia.charts import animate_population_kebab, plot_cohort_heatmap, plot_population_kebab
 from demografia.config import (
     CHART_DIR,
@@ -12,18 +14,21 @@ from demografia.config import (
     EU_OECD_ISO3,
     FINAL_DIR,
     INPUT_DIR,
+    ITALY_NUTS2,
     OECD38_ISO3,
     RAW_DIR,
     ensure_directories,
 )
 from demografia.final_tables import (
     build_demographic_balance_wide,
+    add_eurostat_geo_metadata,
     build_migration_summary,
     enrich_population_schema,
     normalize_eurostat_demographic_balance,
     normalize_eurostat_education_attainment,
     normalize_eurostat_fertility,
     normalize_eurostat_migration,
+    normalize_eurostat_regional_population,
     normalize_migrant_stock,
     projection_inventory,
 )
@@ -43,6 +48,8 @@ DEFAULT_PIPELINE_OPTIONS: dict[str, Any] = {
     "projection_end": 2100,
     "refresh": False,
     "include_migration": False,
+    "include_regional": True,
+    "include_world_bank": False,
     "auto_wpp": False,
     "wpp_age_sex": None,
     "wpp_url": None,
@@ -51,6 +58,8 @@ DEFAULT_PIPELINE_OPTIONS: dict[str, Any] = {
     "istat_key": "all",
     "make_animation": False,
     "eu_geos": EU27_ISO2,
+    "regional_geos": ITALY_NUTS2,
+    "migration_geos": None,
     "comparison_countries": EU_OECD_ISO3,
     "projection_scenario": None,
     "generate_all_country_kebabs": False,
@@ -68,6 +77,8 @@ def pipeline_options(**overrides: Any) -> dict[str, Any]:
     if options["wpp_age_sex"] is not None:
         options["wpp_age_sex"] = Path(options["wpp_age_sex"])
     options["eu_geos"] = tuple(options["eu_geos"])
+    options["regional_geos"] = tuple(options["regional_geos"])
+    options["migration_geos"] = tuple(options["migration_geos"] or options["eu_geos"])
     options["comparison_countries"] = tuple(options["comparison_countries"])
     return options
 
@@ -144,27 +155,27 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
         stock_start_year = max(2000, options["start_year"])
         immigration_raw = eurostat.migration_flows(
             "immigration_profile",
-            geos=options["eu_geos"],
+            geos=options["migration_geos"],
             start_year=migration_start_year,
             end_year=options["end_year"],
             refresh=options["refresh"],
         )
         emigration_raw = eurostat.migration_flows(
             "emigration_profile",
-            geos=options["eu_geos"],
+            geos=options["migration_geos"],
             start_year=migration_start_year,
             end_year=options["end_year"],
             refresh=options["refresh"],
         )
         citizenship_raw = eurostat.migrant_stock(
             "population_citizenship",
-            geos=options["eu_geos"],
+            geos=options["migration_geos"],
             start_year=stock_start_year,
             refresh=options["refresh"],
         )
         birth_country_raw = eurostat.migrant_stock(
             "population_birth_country",
-            geos=options["eu_geos"],
+            geos=options["migration_geos"],
             start_year=stock_start_year,
             refresh=options["refresh"],
         )
@@ -224,6 +235,49 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
         outputs["italy_territorial_population"] = FINAL_DIR / "italy_population_age_sex_territorial.parquet"
         outputs["italy_territorial_structure"] = FINAL_DIR / "italy_territorial_age_structure.parquet"
 
+    if options["include_regional"]:
+        regional_population_raw = eurostat.regional_population_age_groups(
+            geos=options["regional_geos"],
+            start_year=options["start_year"],
+            end_year=options["end_year"],
+            refresh=options["refresh"],
+        )
+        regional_balance_raw = eurostat.regional_demographic_balance(
+            geos=options["regional_geos"],
+            start_year=options["start_year"],
+            end_year=options["end_year"],
+            refresh=options["refresh"],
+        )
+        regional_fertility_raw = eurostat.regional_fertility(
+            geos=options["regional_geos"],
+            start_year=options["start_year"],
+            end_year=options["end_year"],
+            refresh=options["refresh"],
+        )
+        save_table(regional_population_raw, RAW_DIR / "eurostat_regional_population_age_groups.parquet")
+        save_table(regional_balance_raw, RAW_DIR / "eurostat_regional_demographic_balance.parquet")
+        save_table(regional_fertility_raw, RAW_DIR / "eurostat_regional_fertility.parquet")
+
+        regional_population = normalize_eurostat_regional_population(regional_population_raw)
+        regional_structure = compute_age_structure(regional_population)
+        regional_balance_long = add_eurostat_geo_metadata(
+            normalize_eurostat_demographic_balance(regional_balance_raw),
+            regional_balance_raw,
+        )
+        regional_balance = build_demographic_balance_wide(regional_balance_long)
+        regional_fertility = add_eurostat_geo_metadata(
+            normalize_eurostat_fertility(regional_fertility_raw),
+            regional_fertility_raw,
+        )
+        save_table(regional_population, FINAL_DIR / "italy_regional_population_age_sex.parquet")
+        save_table(regional_structure, FINAL_DIR / "italy_regional_age_structure.parquet")
+        save_table(regional_balance, FINAL_DIR / "italy_regional_demographic_balance.parquet")
+        save_table(regional_fertility, FINAL_DIR / "italy_regional_fertility.parquet")
+        outputs["italy_regional_population"] = FINAL_DIR / "italy_regional_population_age_sex.parquet"
+        outputs["italy_regional_structure"] = FINAL_DIR / "italy_regional_age_structure.parquet"
+        outputs["italy_regional_balance"] = FINAL_DIR / "italy_regional_demographic_balance.parquet"
+        outputs["italy_regional_fertility"] = FINAL_DIR / "italy_regional_fertility.parquet"
+
     population = enrich_population_schema(population)
     save_table(population, FINAL_DIR / "population_age_sex_observed_projected.parquet")
     outputs["population"] = FINAL_DIR / "population_age_sex_observed_projected.parquet"
@@ -236,17 +290,23 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
     save_table(inventory, FINAL_DIR / "projection_inventory.parquet")
     outputs["projection_inventory"] = FINAL_DIR / "projection_inventory.parquet"
 
-    # World Bank WDI supplies broad cross-country indicators for EU/OECD panels.
-    comparison_panel = world_bank.panel(
-        countries=options["comparison_countries"],
-        start_year=options["start_year"],
-        end_year=options["end_year"],
-        refresh=options["refresh"],
-    )
-    comparison_panel = add_group_benchmarks(
-        comparison_panel,
-        {"EU27_MEDIAN": EU27_ISO3, "OECD38_MEDIAN": OECD38_ISO3},
-    )
+    # World Bank WDI is optional because harmonized European comparisons can be
+    # built directly from the Eurostat tables generated above.
+    if options["include_world_bank"]:
+        comparison_panel = world_bank.panel(
+            countries=options["comparison_countries"],
+            start_year=options["start_year"],
+            end_year=options["end_year"],
+            refresh=options["refresh"],
+        )
+        comparison_panel = add_group_benchmarks(
+            comparison_panel,
+            {"EU27_MEDIAN": EU27_ISO3, "OECD38_MEDIAN": OECD38_ISO3},
+        )
+    else:
+        comparison_panel = pd.DataFrame(
+            columns=["iso3", "country", "year", "indicator_id", "indicator", "value", "source"]
+        )
     save_table(comparison_panel, FINAL_DIR / "international_demographic_indicators.parquet")
     save_table(
         comparison_panel[comparison_panel["iso3"].isin((*OECD38_ISO3, "OECD38_MEDIAN"))],

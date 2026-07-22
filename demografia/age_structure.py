@@ -73,11 +73,44 @@ def _non_overlapping_intervals(frame: pd.DataFrame) -> pd.DataFrame:
     return grouped.loc[selected].drop(columns="width").sort_values(["age_low", "age_high"])
 
 
+def _fast_atomic_population_rows(population: pd.DataFrame, keys: list[str]) -> pd.DataFrame | None:
+    """Return a cleaned table quickly when age intervals are already disjoint."""
+    required = {"age_low", "age_high", "sex", "value"}
+    if not required.issubset(population.columns):
+        return None
+    candidate = population.dropna(subset=["age_low", "age_high", "value"]).copy()
+    if candidate.empty:
+        return population.iloc[0:0].copy()
+
+    # When male and female rows are available for a geography/year/scenario,
+    # total-sex rows are aggregates and should not be counted alongside them.
+    has_male_female = candidate.groupby(keys, dropna=False)["sex"].transform(
+        lambda values: {"M", "F"}.issubset(set(values.dropna().astype(str)))
+    )
+    candidate = candidate[~(has_male_female & candidate["sex"].astype(str).eq("T"))].copy()
+    group_cols = [*keys, "sex"]
+    intervals = candidate.assign(
+        interval_length=candidate["age_high"].astype(float) - candidate["age_low"].astype(float) + 1
+    )
+    coverage = intervals.groupby(group_cols, dropna=False).agg(
+        age_min=("age_low", "min"),
+        age_max=("age_high", "max"),
+        interval_total=("interval_length", "sum"),
+    )
+    span = coverage["age_max"] - coverage["age_min"] + 1
+    if coverage["interval_total"].gt(span).any():
+        return None
+    return candidate
+
+
 def atomic_population_rows(population: pd.DataFrame) -> pd.DataFrame:
     """Remove overlapping aggregate ages and total-sex rows without imputation."""
     if population.empty:
         return population.copy()
     keys = _group_keys(population)
+    fast = _fast_atomic_population_rows(population, keys)
+    if fast is not None:
+        return fast
     pieces: list[pd.DataFrame] = []
     for key_values, group in population.groupby(keys, dropna=False):
         key_values = key_values if isinstance(key_values, tuple) else (key_values,)
@@ -124,101 +157,118 @@ def _weighted_median_age(group: pd.DataFrame) -> float:
     return _weighted_quantile_age(group, 0.5)
 
 
+def _band_series(total_by_age: pd.DataFrame, keys: list[str], lower: int, upper: int) -> pd.Series:
+    intersects = total_by_age["age_high"].ge(lower) & total_by_age["age_low"].le(upper)
+    contained = total_by_age["age_low"].ge(lower) & total_by_age["age_high"].le(upper)
+    values = total_by_age.loc[contained].groupby(keys, dropna=False)["value"].sum()
+    partial = total_by_age.loc[intersects & ~contained].groupby(keys, dropna=False).size()
+    if not partial.empty:
+        values = values.reindex(values.index.union(partial.index))
+        values.loc[partial.index] = np.nan
+    return values
+
+
+def _band_by_sex(clean: pd.DataFrame, keys: list[str], lower: int, upper: int) -> pd.DataFrame:
+    intersects = clean["age_high"].ge(lower) & clean["age_low"].le(upper)
+    contained = clean["age_low"].ge(lower) & clean["age_high"].le(upper)
+    values = (
+        clean.loc[contained]
+        .groupby([*keys, "sex"], dropna=False)["value"]
+        .sum()
+        .unstack("sex")
+    )
+    partial = clean.loc[intersects & ~contained].groupby(keys, dropna=False).size()
+    if not partial.empty:
+        values = values.reindex(values.index.union(partial.index))
+        values.loc[partial.index, :] = np.nan
+    return values
+
+
+def _divide(numerator: pd.Series, denominator: pd.Series, multiplier: float = 1.0) -> pd.Series:
+    return np.where(
+        denominator.notna() & denominator.ne(0) & numerator.notna(),
+        multiplier * numerator / denominator,
+        np.nan,
+    )
+
+
 def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
     if population.empty:
         return pd.DataFrame()
     clean = atomic_population_rows(population)
-    rows: list[dict[str, object]] = []
     keys = _group_keys(clean)
+    total_by_age = clean.groupby([*keys, "age_low", "age_high"], as_index=False, dropna=False)["value"].sum()
+    result = total_by_age.groupby(keys, dropna=False)["value"].sum().to_frame("population_total")
 
-    for key, group in clean.groupby(keys, dropna=False):
+    for name, (lower, upper) in AGE_BANDS.items():
+        band = _band_series(total_by_age, keys, lower, upper).reindex(result.index)
+        result[name] = band
+        result[f"share_{name.removeprefix('pop_')}"] = _divide(band, result["population_total"], 100)
+
+    sex_totals = clean.groupby([*keys, "sex"], dropna=False)["value"].sum().unstack("sex").reindex(result.index)
+    male = sex_totals["M"] if "M" in sex_totals else pd.Series(np.nan, index=result.index)
+    female = sex_totals["F"] if "F" in sex_totals else pd.Series(np.nan, index=result.index)
+    has_sex_detail = male.fillna(0).add(female.fillna(0)).gt(0)
+    result["population_male"] = male.where(has_sex_detail)
+    result["population_female"] = female.where(has_sex_detail)
+    result["sex_ratio_male_per_100_female"] = _divide(male, female, 100)
+
+    for name, (lower, upper) in AGE_BANDS.items():
+        suffix = name.removeprefix("pop_")
+        by_sex = _band_by_sex(clean, keys, lower, upper).reindex(result.index)
+        male_band = by_sex["M"] if "M" in by_sex else pd.Series(np.nan, index=result.index)
+        female_band = by_sex["F"] if "F" in by_sex else pd.Series(np.nan, index=result.index)
+        result[f"sex_ratio_male_per_100_female_{suffix}"] = _divide(male_band, female_band, 100)
+    result["women_15_49"] = (
+        _band_by_sex(clean, keys, 15, 49).reindex(result.index).get("F", pd.Series(np.nan, index=result.index))
+    )
+
+    working = result["pop_15_64"]
+    youth = result["pop_0_14"]
+    old = result["pop_65_plus"]
+    result["dependency_youth"] = _divide(youth, working, 100)
+    result["dependency_old"] = _divide(old, working, 100)
+    result["dependency_total"] = _divide(youth.add(old), working, 100)
+    result["support_ratio_15_64_per_65_plus"] = _divide(working, old)
+    result["support_ratio_20_64_per_65_plus"] = _divide(result["pop_20_64"], old)
+    result["support_ratio_25_64_per_65_plus"] = _divide(result["pop_25_64"], old)
+    result["support_ratio_20_69_per_70_plus"] = _divide(result["pop_20_69"], result["pop_70_plus"])
+    result["active_replacement_60_64_per_100_15_19"] = _divide(result["pop_60_64"], result["pop_15_19"], 100)
+    result["young_adult_to_late_life_ratio_20_39_per_60_79"] = _divide(result["pop_20_39"], result["pop_60_79"])
+    result["ageing_index_65_plus_per_100_youth"] = _divide(old, youth, 100)
+
+    total_by_age["age_mid"] = (total_by_age["age_low"] + total_by_age["age_high"].clip(upper=110)) / 2
+    weighted = total_by_age.assign(weighted_age=total_by_age["age_mid"] * total_by_age["value"])
+    result["mean_age"] = _divide(
+        weighted.groupby(keys, dropna=False)["weighted_age"].sum().reindex(result.index),
+        result["population_total"],
+    )
+    result["age_min"] = total_by_age.groupby(keys, dropna=False)["age_low"].min().reindex(result.index)
+    result["age_max"] = total_by_age.groupby(keys, dropna=False)["age_high"].max().reindex(result.index)
+    result["age_classes"] = total_by_age.groupby(keys, dropna=False).size().reindex(result.index)
+    max_width = (
+        total_by_age.assign(width=total_by_age["age_high"] - total_by_age["age_low"])
+        .groupby(keys, dropna=False)["width"]
+        .max()
+        .reindex(result.index)
+    )
+    result["age_resolution"] = np.where(max_width.eq(0), "single_year", "grouped")
+
+    quantile_rows: list[dict[str, object]] = []
+    for key, group in total_by_age.groupby(keys, dropna=False):
         key = key if isinstance(key, tuple) else (key,)
         row: dict[str, object] = dict(zip(keys, key, strict=True))
-        total = float(group["value"].sum())
-        row["population_total"] = total
-        total_by_age = group.groupby(["age_low", "age_high"], as_index=False)["value"].sum()
-        for name, (lower, upper) in AGE_BANDS.items():
-            value = _band_sum(total_by_age, lower, upper)
-            row[name] = value
-            row[f"share_{name.removeprefix('pop_')}"] = (
-                100 * value / total if total and pd.notna(value) else np.nan
-            )
+        row["age_p10"] = _weighted_quantile_age(group, 0.10)
+        row["age_p25"] = _weighted_quantile_age(group, 0.25)
+        row["median_age"] = _weighted_median_age(group)
+        row["age_p75"] = _weighted_quantile_age(group, 0.75)
+        row["age_p90"] = _weighted_quantile_age(group, 0.90)
+        quantile_rows.append(row)
+    if quantile_rows:
+        quantiles = pd.DataFrame(quantile_rows).set_index(keys)
+        result = result.join(quantiles)
 
-        male = float(group.loc[group["sex"].eq("M"), "value"].sum())
-        female = float(group.loc[group["sex"].eq("F"), "value"].sum())
-        row["population_male"] = male if male or female else np.nan
-        row["population_female"] = female if male or female else np.nan
-        row["sex_ratio_male_per_100_female"] = 100 * male / female if female else np.nan
-        for name, (lower, upper) in AGE_BANDS.items():
-            suffix = name.removeprefix("pop_")
-            male_band = _band_sum(group[group["sex"].eq("M")], lower, upper)
-            female_band = _band_sum(group[group["sex"].eq("F")], lower, upper)
-            row[f"sex_ratio_male_per_100_female_{suffix}"] = (
-                100 * male_band / female_band
-                if pd.notna(female_band) and female_band and pd.notna(male_band)
-                else np.nan
-            )
-        row["women_15_49"] = (
-            _band_sum(group[group["sex"].eq("F")], 15, 49) if female else np.nan
-        )
-
-        working = row["pop_15_64"]
-        youth = row["pop_0_14"]
-        old = row["pop_65_plus"]
-        row["dependency_youth"] = 100 * youth / working if working and pd.notna(youth) else np.nan
-        row["dependency_old"] = 100 * old / working if working and pd.notna(old) else np.nan
-        row["dependency_total"] = (
-            100 * (youth + old) / working
-            if working and pd.notna(youth) and pd.notna(old)
-            else np.nan
-        )
-        row["support_ratio_15_64_per_65_plus"] = (
-            working / old if old and pd.notna(working) else np.nan
-        )
-        row["support_ratio_20_64_per_65_plus"] = (
-            row["pop_20_64"] / old if old and pd.notna(row["pop_20_64"]) else np.nan
-        )
-        row["support_ratio_25_64_per_65_plus"] = (
-            row["pop_25_64"] / old if old and pd.notna(row["pop_25_64"]) else np.nan
-        )
-        row["support_ratio_20_69_per_70_plus"] = (
-            row["pop_20_69"] / row["pop_70_plus"]
-            if row["pop_70_plus"] and pd.notna(row["pop_20_69"])
-            else np.nan
-        )
-        row["active_replacement_60_64_per_100_15_19"] = (
-            100 * row["pop_60_64"] / row["pop_15_19"]
-            if row["pop_15_19"] and pd.notna(row["pop_60_64"])
-            else np.nan
-        )
-        row["young_adult_to_late_life_ratio_20_39_per_60_79"] = (
-            row["pop_20_39"] / row["pop_60_79"]
-            if row["pop_60_79"] and pd.notna(row["pop_20_39"])
-            else np.nan
-        )
-        row["ageing_index_65_plus_per_100_youth"] = (
-            100 * old / youth if youth and pd.notna(old) else np.nan
-        )
-
-        midpoint = (total_by_age["age_low"] + total_by_age["age_high"].clip(upper=110)) / 2
-        row["mean_age"] = (
-            float((midpoint * total_by_age["value"]).sum() / total) if total else np.nan
-        )
-        row["age_p10"] = _weighted_quantile_age(total_by_age, 0.10)
-        row["age_p25"] = _weighted_quantile_age(total_by_age, 0.25)
-        row["median_age"] = _weighted_median_age(total_by_age)
-        row["age_p75"] = _weighted_quantile_age(total_by_age, 0.75)
-        row["age_p90"] = _weighted_quantile_age(total_by_age, 0.90)
-        row["age_min"] = int(total_by_age["age_low"].min()) if not total_by_age.empty else None
-        row["age_max"] = int(total_by_age["age_high"].max()) if not total_by_age.empty else None
-        row["age_classes"] = int(len(total_by_age))
-        widths = total_by_age["age_high"] - total_by_age["age_low"]
-        row["age_resolution"] = (
-            "single_year" if not widths.empty and widths.max() == 0 else "grouped"
-        )
-        rows.append(row)
-
-    return pd.DataFrame(rows)
+    return result.reset_index()
 
 
 def _select_plot_source(subset: pd.DataFrame, iso3: str) -> pd.DataFrame:

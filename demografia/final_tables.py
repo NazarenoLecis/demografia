@@ -102,6 +102,87 @@ def _age_columns(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
     return low, high, pd.Series(label, index=series.index, dtype="string")
 
 
+def _eurostat_geo_metadata(frame: pd.DataFrame, geo_col: str) -> pd.DataFrame:
+    metadata = pd.DataFrame(index=frame.index)
+    metadata["geo_level"] = np.where(frame[geo_col].astype(str).str.len().gt(2), "region", "country")
+    metadata["geo_code"] = frame[geo_col].astype(str)
+    label_col = f"{geo_col}_label"
+    metadata["geo_name"] = (
+        frame[label_col].astype(str)
+        if label_col in frame
+        else metadata["geo_code"].map(COUNTRY_NAMES).fillna(metadata["geo_code"])
+    )
+    metadata["iso3"] = np.where(
+        metadata["geo_level"].eq("region"),
+        "ITA",
+        _iso3(frame[geo_col]),
+    )
+    return metadata
+
+
+def add_eurostat_geo_metadata(frame: pd.DataFrame, raw: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or raw.empty:
+        return frame
+    geo_col = _first_existing(raw.columns, ("geo", "geo_label"))
+    if not geo_col:
+        return frame
+    metadata = _eurostat_geo_metadata(raw.loc[frame.index], geo_col)
+    result = frame.copy()
+    for column in ("geo_level", "geo_code", "geo_name", "iso3"):
+        result[column] = metadata[column].to_numpy()
+    return result
+
+
+def normalize_eurostat_regional_population(
+    frame: pd.DataFrame,
+    extraction_date: str | None = None,
+) -> pd.DataFrame:
+    columns = [
+        "source",
+        "dataset",
+        "extraction_date",
+        "geo_level",
+        "geo_code",
+        "geo_name",
+        "iso3",
+        "year",
+        "age_low",
+        "age_high",
+        "age_label",
+        "sex",
+        "status",
+        "scenario",
+        "unit",
+        "value",
+    ]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    geo_col = _first_existing(frame.columns, ("geo", "geo_label"))
+    year_col = _first_existing(frame.columns, ("time", "TIME_PERIOD", "year"))
+    age_col = _first_existing(frame.columns, ("age", "age_label"))
+    sex_col = _first_existing(frame.columns, ("sex", "sex_label"))
+    if not all((geo_col, year_col, age_col, sex_col)) or "value" not in frame:
+        raise ValueError("Dimensioni Eurostat insufficienti per la popolazione regionale")
+
+    metadata = _eurostat_geo_metadata(frame, geo_col)
+    result = pd.DataFrame(index=frame.index)
+    result["source"] = "Eurostat"
+    result["dataset"] = frame.get("dataset", "demo_r_pjangroup")
+    result["extraction_date"] = extraction_date or date.today().isoformat()
+    result["geo_level"] = metadata["geo_level"]
+    result["geo_code"] = metadata["geo_code"]
+    result["geo_name"] = metadata["geo_name"]
+    result["iso3"] = metadata["iso3"]
+    result["year"] = _as_year(frame[year_col])
+    result["age_low"], result["age_high"], result["age_label"] = _age_columns(frame[age_col])
+    result["sex"] = frame[sex_col].astype(str).str.upper().replace({"MALE": "M", "FEMALE": "F"})
+    result["status"] = "observed"
+    result["scenario"] = "Observed"
+    result["unit"] = frame.get("unit", "NR").astype(str) if "unit" in frame else "NR"
+    result["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    return result[columns].dropna(subset=["geo_code", "year", "value"])
+
+
 def _indicator_from_label(code: object, label: object, mapping: dict[str, str], family: str) -> str:
     code_text = str(code).upper().strip()
     if code_text in mapping:
@@ -227,7 +308,12 @@ def build_demographic_balance_wide(balance: pd.DataFrame) -> pd.DataFrame:
         numeric_units = preferred["unit"].astype(str).str.upper().isin({"NR", "NUMBER", "PERSON", "PERSONS", ""})
         if numeric_units.any():
             preferred = preferred[numeric_units]
-    wide = preferred.pivot_table(index=["iso3", "year"], columns="indicator", values="value", aggfunc="first").reset_index()
+    index = [column for column in ("geo_level", "geo_code", "geo_name", "iso3", "year") if column in preferred]
+    if "year" not in index:
+        index.append("year")
+    if "iso3" not in index and "iso3" in preferred:
+        index.insert(0, "iso3")
+    wide = preferred.pivot_table(index=index, columns="indicator", values="value", aggfunc="first").reset_index()
     wide.columns.name = None
     if {"live_births", "deaths"}.issubset(wide):
         wide["natural_change_derived"] = wide["live_births"] - wide["deaths"]

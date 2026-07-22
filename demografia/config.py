@@ -22,6 +22,14 @@ EU27_ISO3 = (
     "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE",
 )
 
+ITALY_NUTS2 = (
+    "ITC1", "ITC2", "ITC3", "ITC4",
+    "ITH1", "ITH2", "ITH3", "ITH4", "ITH5",
+    "ITI1", "ITI2", "ITI3", "ITI4",
+    "ITF1", "ITF2", "ITF3", "ITF4", "ITF5", "ITF6",
+    "ITG1", "ITG2",
+)
+
 OECD38_ISO3 = (
     "AUS", "AUT", "BEL", "CAN", "CHL", "COL", "CRI", "CZE", "DNK", "EST", "FIN", "FRA", "DEU",
     "GRC", "HUN", "ISL", "IRL", "ISR", "ITA", "JPN", "KOR", "LVA", "LTU", "LUX", "MEX", "NLD",
@@ -73,6 +81,9 @@ WORLD_BANK_INDICATORS = {
 
 EUROSTAT_DATASETS = {
     "population_age_sex": "demo_pjan",
+    "regional_population_age_groups": "demo_r_pjangroup",
+    "regional_demographic_balance": "demo_r_gind3",
+    "regional_fertility": "demo_r_find3",
     "fertility": "demo_frate",
     "demographic_balance": "demo_gind",
     "projections": "proj_23np",
