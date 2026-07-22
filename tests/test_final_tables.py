@@ -10,12 +10,43 @@ from demografia.final_tables import (
     normalize_eurostat_migration,
     normalize_eurostat_regional_population,
 )
+from demografia.sources import eurostat
 from demografia.transform import parse_age_code
 
 
 def test_parse_less_than_age_codes():
     assert parse_age_code("Y_LT5") == (0, 4)
     assert parse_age_code("Y_LT15") == (0, 14)
+
+
+def test_migrant_stock_accepts_birth_country_filter(monkeypatch):
+    captured = {}
+
+    def fake_fetch(dataset, filters, start_year, refresh, chunk_size):
+        captured["dataset"] = dataset
+        captured["filters"] = filters
+        captured["start_year"] = start_year
+        captured["refresh"] = refresh
+        captured["chunk_size"] = chunk_size
+        return pd.DataFrame()
+
+    monkeypatch.setattr(eurostat, "fetch", fake_fetch)
+
+    eurostat.migrant_stock(
+        "population_birth_country",
+        geos=("IT",),
+        start_year=2000,
+        ages=("Y_LT5",),
+        sexes=("M", "F"),
+        categories=("FOR",),
+        refresh=False,
+        chunk_size=1,
+    )
+
+    assert captured["dataset"] == "migr_pop3ctb"
+    assert captured["filters"]["c_birth"] == ("FOR",)
+    assert captured["filters"]["age"] == ("Y_LT5",)
+    assert captured["filters"]["sex"] == ("M", "F")
 
 
 def test_fertility_normalization():

@@ -14,6 +14,7 @@ from demografia.config import (
     EU_OECD_ISO3,
     FINAL_DIR,
     INPUT_DIR,
+    MIGRANT_STOCK_AGE_GROUPS,
     OECD38_ISO3,
     RAW_DIR,
     ensure_directories,
@@ -61,6 +62,8 @@ DEFAULT_PIPELINE_OPTIONS: dict[str, Any] = {
     "regional_levels": ("nuts2", "nuts3"),
     "regional_geos": None,
     "migration_geos": None,
+    "immigrant_population_ages": MIGRANT_STOCK_AGE_GROUPS,
+    "immigrant_population_category": "FOR",
     "comparison_countries": EU_OECD_ISO3,
     "projection_scenario": None,
     "generate_all_country_kebabs": False,
@@ -82,6 +85,7 @@ def pipeline_options(**overrides: Any) -> dict[str, Any]:
     if options["regional_geos"] is not None:
         options["regional_geos"] = tuple(options["regional_geos"])
     options["migration_geos"] = tuple(options["migration_geos"] or options["eu_geos"])
+    options["immigrant_population_ages"] = tuple(options["immigrant_population_ages"])
     options["comparison_countries"] = tuple(options["comparison_countries"])
     return options
 
@@ -184,22 +188,38 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
             start_year=stock_start_year,
             refresh=options["refresh"],
         )
+        # A Kebab for the immigrant population needs stock, not flows: this
+        # table keeps residents born abroad by age and sex. It is intentionally
+        # separate from the top-origin stock tables, which stay at total age.
+        immigrant_population_raw = eurostat.migrant_stock(
+            "population_birth_country",
+            geos=options["migration_geos"],
+            start_year=stock_start_year,
+            ages=options["immigrant_population_ages"],
+            sexes=("M", "F"),
+            categories=(options["immigrant_population_category"],),
+            refresh=options["refresh"],
+        )
         save_table(immigration_raw, RAW_DIR / "eurostat_immigration_profile.parquet")
         save_table(emigration_raw, RAW_DIR / "eurostat_emigration_profile.parquet")
         save_table(citizenship_raw, RAW_DIR / "eurostat_population_by_citizenship.parquet")
         save_table(birth_country_raw, RAW_DIR / "eurostat_population_by_birth_country.parquet")
+        save_table(immigrant_population_raw, RAW_DIR / "eurostat_immigrant_population_age_sex.parquet")
 
         immigration = normalize_eurostat_migration(immigration_raw, "immigration")
         emigration = normalize_eurostat_migration(emigration_raw, "emigration")
         migration_summary = build_migration_summary(immigration, emigration)
         citizenship = normalize_migrant_stock(citizenship_raw, "citizenship")
         birth_country = normalize_migrant_stock(birth_country_raw, "country_of_birth")
+        immigrant_population = normalize_migrant_stock(immigrant_population_raw, "country_of_birth")
         save_table(immigration, FINAL_DIR / "immigration_profile.parquet")
         save_table(emigration, FINAL_DIR / "emigration_profile.parquet")
         save_table(migration_summary, FINAL_DIR / "migration_summary.parquet")
         save_table(citizenship, FINAL_DIR / "population_by_citizenship.parquet")
         save_table(birth_country, FINAL_DIR / "population_by_country_of_birth.parquet")
+        save_table(immigrant_population, FINAL_DIR / "immigrant_population_age_sex.parquet")
         outputs["migration_summary"] = FINAL_DIR / "migration_summary.parquet"
+        outputs["immigrant_population_age_sex"] = FINAL_DIR / "immigrant_population_age_sex.parquet"
 
     # Population rows are standardized before age-structure indicators are
     # calculated. This avoids hiding source/scenario differences downstream.

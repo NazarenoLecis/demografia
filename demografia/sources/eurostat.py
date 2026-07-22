@@ -293,14 +293,24 @@ def migrant_stock(
     start_year: int = 2000,
     ages: Iterable[str] = ("TOTAL",),
     sexes: Iterable[str] = ("T", "M", "F"),
+    categories: Iterable[str] | None = None,
     refresh: bool = False,
     chunk_size: int = 5,
 ) -> pd.DataFrame:
     if dimension not in {"population_citizenship", "population_birth_country"}:
         raise ValueError("dimension non riconosciuta")
+    filters: dict[str, object] = {
+        "geo": tuple(geos),
+        "unit": "NR",
+        "age": tuple(ages),
+        "sex": tuple(sexes),
+    }
+    if categories is not None:
+        category_dimension = "citizen" if dimension == "population_citizenship" else "c_birth"
+        filters[category_dimension] = tuple(categories)
     return fetch(
         EUROSTAT_DATASETS[dimension],
-        filters={"geo": tuple(geos), "unit": "NR", "age": tuple(ages), "sex": tuple(sexes)},
+        filters=filters,
         start_year=start_year,
         refresh=refresh,
         chunk_size=chunk_size,

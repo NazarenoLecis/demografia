@@ -99,6 +99,18 @@ def test_sources_remain_separate():
     assert len(result) == 2
 
 
+def test_quantiles_join_when_projection_metadata_is_missing():
+    population = _single_age_population()
+    population["dataset"] = "demo_pjan/proj_23np"
+    population["projection_vintage"] = pd.NA
+
+    result = compute_age_structure(population).iloc[0]
+
+    assert result["age_p10"] == 10
+    assert result["median_age"] == 50
+    assert result["age_p90"] == 90
+
+
 def test_comparison_universe_covers_full_eu_and_oecd():
     assert set(EU27_ISO3).issubset(EU_OECD_ISO3)
     assert set(OECD38_ISO3).issubset(EU_OECD_ISO3)

@@ -96,6 +96,27 @@ EUROSTAT_DATASETS = {
 
 EDUCATION_ATTAINMENT_AGE_GROUPS = ("Y15-64", "Y25-64", "Y25-34", "Y35-44", "Y45-54", "Y55-64")
 
+MIGRANT_STOCK_AGE_GROUPS = (
+    "Y_LT5",
+    "Y5-9",
+    "Y10-14",
+    "Y15-19",
+    "Y20-24",
+    "Y25-29",
+    "Y30-34",
+    "Y35-39",
+    "Y40-44",
+    "Y45-49",
+    "Y50-54",
+    "Y55-59",
+    "Y60-64",
+    "Y65-69",
+    "Y70-74",
+    "Y75-79",
+    "Y80-84",
+    "Y_GE85",
+)
+
 
 def ensure_directories() -> None:
     for path in (INPUT_DIR, RAW_DIR, INTERIM_DIR, FINAL_DIR, CACHE_DIR, CHART_DIR, LOG_DIR):

@@ -8,7 +8,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from demografia.pipeline import pipeline_options, run_pipeline
-from demografia.config import EU27_ISO2, EU_OECD_ISO3
+from demografia.config import EU27_ISO2, EU_OECD_ISO3, MIGRANT_STOCK_AGE_GROUPS
 from demografia.utils import print_outputs
 
 
@@ -33,6 +33,8 @@ REGIONAL_COUNTRY_PREFIX = "IT"
 REGIONAL_LEVELS = ("nuts2", "nuts3")
 REGIONAL_GEOS: tuple[str, ...] | None = None
 MIGRATION_GEOS = ("IT",)
+IMMIGRANT_POPULATION_AGES = MIGRANT_STOCK_AGE_GROUPS
+IMMIGRANT_POPULATION_CATEGORY = "FOR"
 COMPARISON_COUNTRIES = EU_OECD_ISO3
 PROJECTION_SCENARIO: str | None = "BSL"
 GENERATE_ALL_COUNTRY_KEBABS = False
@@ -58,6 +60,8 @@ def main(
     regional_levels: tuple[str, ...] = REGIONAL_LEVELS,
     regional_geos: tuple[str, ...] | None = REGIONAL_GEOS,
     migration_geos: tuple[str, ...] = MIGRATION_GEOS,
+    immigrant_population_ages: tuple[str, ...] = IMMIGRANT_POPULATION_AGES,
+    immigrant_population_category: str = IMMIGRANT_POPULATION_CATEGORY,
     comparison_countries: tuple[str, ...] = COMPARISON_COUNTRIES,
     projection_scenario: str | None = PROJECTION_SCENARIO,
     generate_all_country_kebabs: bool = GENERATE_ALL_COUNTRY_KEBABS,
@@ -87,6 +91,8 @@ def main(
         regional_levels=regional_levels,
         regional_geos=regional_geos,
         migration_geos=migration_geos,
+        immigrant_population_ages=immigrant_population_ages,
+        immigrant_population_category=immigrant_population_category,
         comparison_countries=comparison_countries,
         projection_scenario=projection_scenario,
         generate_all_country_kebabs=generate_all_country_kebabs,

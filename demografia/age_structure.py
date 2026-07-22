@@ -265,8 +265,12 @@ def compute_age_structure(population: pd.DataFrame) -> pd.DataFrame:
         row["age_p90"] = _weighted_quantile_age(group, 0.90)
         quantile_rows.append(row)
     if quantile_rows:
-        quantiles = pd.DataFrame(quantile_rows).set_index(keys)
-        result = result.join(quantiles)
+        quantiles = pd.DataFrame(quantile_rows)
+        # Observed rows often have empty projection metadata. A MultiIndex join
+        # does not reliably match empty keys, so the table is flattened before
+        # merging the distribution quantiles back onto the aggregate indicators.
+        result = result.reset_index().merge(quantiles, on=keys, how="left")
+        return result
 
     return result.reset_index()
 
