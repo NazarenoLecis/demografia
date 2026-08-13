@@ -6,12 +6,18 @@ from demografia.notebook_charts import (
     education_display_rows,
     europe_metric_table,
     fig_migrant_education_by_birth,
+    fig_migrant_stock_categories,
     fig_migrant_tertiary_region,
     fig_migration_age_profile,
     fig_migration_citizenship_profile,
     finest_non_overlapping_age_rows,
     metric_rows,
+    parametri_aree_istruzione_migranti,
+    parametri_paesi,
+    stock_category_label,
 )
+from demografia.pipeline import pipeline_options
+from demografia.utils import normalize_eurostat_geo_code, normalize_territory_key
 
 
 def test_apply_layout_places_source_note_in_lower_left_corner():
@@ -56,9 +62,69 @@ def test_metric_rows_uses_balance_population_for_provinces():
         ),
     }
 
-    rows = metric_rows(tables, "province:ITC4C", "population_total")
+    rows = metric_rows(tables, "ITC4C", "population_total")
 
     assert rows.iloc[0]["metric_value"] == 3_200_000
+
+
+def test_user_facing_codes_are_normalized_without_prefixes():
+    assert normalize_territory_key("ITA") == "country:ITA"
+    assert normalize_territory_key("ESP") == "country:ESP"
+    assert normalize_territory_key("ITC4") == "region:ITC4"
+    assert normalize_territory_key("ITC4C") == "province:ITC4C"
+    assert normalize_eurostat_geo_code("ITA") == "IT"
+    assert normalize_eurostat_geo_code("ESP") == "ES"
+    assert normalize_eurostat_geo_code("GRC") == "EL"
+
+
+def test_pipeline_options_accepts_user_facing_country_codes():
+    options = pipeline_options(
+        eu_geos=("ITA", "ESP"),
+        regional_country_prefix="ITA",
+        regional_geos=("ITC4",),
+        migration_geos=("ITA", "ESP"),
+        migrant_education_geos=("ITA", "ITC4"),
+        comparison_countries=("ITA", "ESP"),
+    )
+
+    assert options["eu_geos"] == ("IT", "ES")
+    assert options["regional_country_prefix"] == "IT"
+    assert options["regional_geos"] == ("ITC4",)
+    assert options["migration_geos"] == ("IT", "ES")
+    assert options["migrant_education_geos"] == ("IT", "ITC4")
+    assert options["comparison_countries"] == ("ITA", "ESP")
+
+
+def test_parameter_country_table_shows_copyable_iso3_codes():
+    tables = {
+        "age_structure": pd.DataFrame(
+            [
+                {"iso3": "ITA", "year": 2024},
+                {"iso3": "ESP", "year": 2024},
+            ]
+        )
+    }
+
+    options = parametri_paesi(tables)
+
+    assert set(options["codice"]) == {"ITA", "ESP"}
+    assert not options["codice"].astype(str).str.contains(":").any()
+
+
+def test_migrant_education_area_table_shows_country_as_iso3():
+    tables = {
+        "migrant_education": pd.DataFrame(
+            [
+                {"geo_code": "IT", "geo_name": "Italia", "geo_level": "country", "iso3": "ITA", "year": 2024},
+                {"geo_code": "ITC4", "geo_name": "Lombardia", "geo_level": "region", "iso3": "ITA", "year": 2024},
+            ]
+        )
+    }
+
+    options = parametri_aree_istruzione_migranti(tables)
+
+    assert "ITA" in set(options["codice"])
+    assert "ITC4" in set(options["codice"])
 
 
 def test_europe_metric_table_keeps_eu27_countries_only():
@@ -119,6 +185,39 @@ def test_migration_detail_figures_use_age_and_citizenship_tables():
     assert len(citizenship_fig.data) == 1
     assert "Cittadini del paese" in list(citizenship_fig.data[0].x)
     assert "Fonte: Eurostat migr_imm1ctz" in citizenship_fig.layout.annotations[0].text
+
+
+def test_migrant_stock_category_figures_use_birth_and_citizenship_tables():
+    tables = {
+        "population_by_country_of_birth": pd.DataFrame(
+            [
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "TOTAL", "value": 59_000_000},
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "FOR", "value": 6_000_000},
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "RO", "value": 950_000},
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "AL", "value": 420_000},
+                {"iso3": "ESP", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "TOTAL", "value": 48_000_000},
+                {"iso3": "ESP", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "RO", "value": 510_000},
+                {"iso3": "ESP", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "AL", "value": 120_000},
+            ]
+        ),
+        "population_by_citizenship": pd.DataFrame(
+            [
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "TOTAL", "value": 59_000_000},
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "RO", "value": 1_000_000},
+                {"iso3": "ITA", "year": 2025, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "category": "EU27_2020_FOR", "value": 1_600_000},
+            ]
+        ),
+    }
+
+    birth = fig_migrant_stock_categories(tables, basis="country_of_birth", country="ITA", compare="ESP", year=2025)
+    citizenship = fig_migrant_stock_categories(tables, basis="citizenship", country="ITA", year=2025, measure="percent_total")
+
+    assert len(birth.data) == 2
+    assert "Romania" in list(birth.data[0].y)
+    assert "Albania" in list(birth.data[0].y)
+    assert "Nati all'estero" not in list(birth.data[0].y)
+    assert "% residenti" in citizenship.layout.xaxis.title.text
+    assert stock_category_label("NAT", "citizenship") == "Cittadini del paese"
 
 
 def test_migrant_education_figures_use_birth_group_and_region():

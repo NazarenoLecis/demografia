@@ -12,31 +12,31 @@ from demografia.pipeline import pipeline_options
 from demografia.utils import print_outputs
 
 
-# Configurazione per VS Code.
-# Questo script usa tutte le fonti ufficiali disponibili e produce le tabelle finali.
-START_YEAR = 2020
-END_YEAR = 2024
-PROJECTION_END = 2030
-REFRESH = False
-INCLUDE_MIGRATION = True
-AUTO_WPP = False
-WPP_AGE_SEX: Path | None = None
-WPP_URL: str | None = None
-WPP_SCALE = 1000.0
-MAKE_ANIMATION = False
-GENERATE_ALL_COUNTRY_KEBABS = False
-EU_GEOS = ("IT",)
-COMPARISON_COUNTRIES = ("ITA",)
-PROJECTION_SCENARIO: str | None = "BSL"
+# Configurazione modificabile da VS Code con "Run Python File".
+# Codici paese: usare ISO3, per esempio "ITA" Italia, "ESP" Spagna.
+START_YEAR = 2020  # Primo anno osservato da scaricare.
+END_YEAR = 2024  # Ultimo anno osservato da scaricare.
+PROJECTION_END = 2030  # Ultimo anno delle proiezioni demografiche.
+REFRESH = False  # True forza un nuovo download ignorando la cache locale.
+INCLUDE_MIGRATION = True  # True include stock e flussi migratori.
+AUTO_WPP = False  # True scarica automaticamente il file UN WPP se configurato.
+WPP_AGE_SEX: Path | None = None  # Percorso locale opzionale del file UN WPP per eta e sesso.
+WPP_URL: str | None = None  # URL opzionale del file UN WPP.
+WPP_SCALE = 1000.0  # Fattore di scala dei valori WPP quando la fonte e in migliaia.
+MAKE_ANIMATION = False  # True crea anche la GIF del Kebab.
+GENERATE_ALL_COUNTRY_KEBABS = False  # True genera un Kebab per ogni paese disponibile.
+EU_GEOS = ("ITA",)  # Paesi da scaricare da Eurostat, in ISO3.
+COMPARISON_COUNTRIES = ("ITA",)  # Paesi per confronti estesi, in ISO3.
+PROJECTION_SCENARIO: str | None = "BSL"  # Scenario Eurostat: "BSL" e lo scenario baseline.
 
-INCLUDE_ISTAT = True
-INCLUDE_INPS = True
-INCLUDE_RGS = True
-STRICT = False
-ISTAT_OVERRIDES: dict[str, str] = {}
-ISTAT_KEY = "all"
-INPS_MAX_PAGES: int | None = 30
-INPS_DATASETS_PER_ROLE = 2
+INCLUDE_ISTAT = True  # True include fonti ISTAT quando disponibili.
+INCLUDE_INPS = True  # True include fonti INPS quando disponibili.
+INCLUDE_RGS = True  # True include fonti RGS/OpenBDAP quando disponibili.
+STRICT = False  # True interrompe la pipeline se una fonte opzionale fallisce.
+ISTAT_OVERRIDES: dict[str, str] = {}  # Mappa opzionale ruolo ISTAT -> dataflow ufficiale.
+ISTAT_KEY = "all"  # Chiave ISTAT: "all" scarica tutte le combinazioni disponibili.
+INPS_MAX_PAGES: int | None = 30  # Numero massimo di pagine per ricerca INPS; None non limita.
+INPS_DATASETS_PER_ROLE = 2  # Numero massimo di dataset INPS selezionati per ruolo.
 
 
 def main(

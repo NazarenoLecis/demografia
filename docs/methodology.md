@@ -6,6 +6,8 @@ La base analitica e la popolazione per anno, eta, sesso e territorio. Dati osser
 
 Per l'Unione europea si usa Eurostat. La pipeline richiede tutti i 27 Stati membri e produce controlli di copertura per paese. Per i 38 membri OECD si usa un pannello armonizzato World Bank WDI. I kebab demografici e le proiezioni dei membri OECD extraeuropei richiedono il file ufficiale UN World Population Prospects 2024, configurabile in `scripts/run_pipeline.py`.
 
+I parametri modificabili dall'utente usano codici semplici: paesi in ISO3 (`ITA`, `ESP`), regioni italiane in NUTS2 (`ITC4`) e province italiane in NUTS3 (`ITC4C`). La conversione verso i codici richiesti dalle singole fonti avviene nelle funzioni di utilita.
+
 ## Kebab
 
 I kebab demografici utilizzano uomini e donne per singolo anno di eta, quando disponibile. I valori sono espressi in numero di persone e quota della popolazione. L'animazione usa una scala fissa per rendere confrontabili gli anni.
@@ -19,6 +21,8 @@ La dipendenza demografica e distinta dalla dipendenza economica. La prima usa fa
 Cittadinanza e paese di nascita restano variabili separate. I flussi internazionali, la mobilita interna e lo stock di residenti stranieri o nati all'estero non sono intercambiabili.
 
 Il sottoinsieme "nati in Italia senza cittadinanza italiana" richiede l'incrocio tra cittadinanza e paese di nascita. Le tavole aperte Eurostat e ISTAT usate dal repository pubblicano queste due dimensioni come distribuzioni separate; ISTAT segnala che l'incrocio puo essere richiesto come elaborazione personalizzata. Per questo il repository mostra i margini per cittadinanza e paese di nascita, ma non stima quel sottoinsieme per differenza.
+
+Le tabelle `population_by_citizenship` e `population_by_country_of_birth` conservano anche le categorie nazionali pubblicate da Eurostat. Nei grafici lo stesso stock puo quindi essere letto per singola nazione oppure per aggregati Eurostat, mantenendo separata la lettura per cittadinanza da quella per paese di nascita.
 
 ## Titoli Di Studio
 

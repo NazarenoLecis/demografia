@@ -44,9 +44,17 @@ Ogni script contiene la propria configurazione in cima al file ed espone una fun
 
 I notebook in `notebooks/` sono fogli di lavoro tematici. Ogni foglio ha una cella di parametri in alto, spiegazioni in markdown e grafici verticali con fonte ed elaborazione in basso a sinistra.
 
+I parametri modificabili usano codici semplici e commentati:
+
+- paesi in ISO3, per esempio `ITA` per Italia ed `ESP` per Spagna;
+- regioni italiane in NUTS2, per esempio `ITC4` per Lombardia;
+- province italiane in NUTS3, per esempio `ITC4C` per Milano.
+
+Nei notebook la funzione `parametri_disponibili(tables)` mostra la lista dei codici copiabili. I prefissi interni non sono richiesti nei parametri utente.
+
 - `notebooks/01_kebab_e_proiezioni.ipynb`: popolazione, Kebab demografico, proiezioni, popolazione nata all'estero, età media, mediana, quantili e dipendenza.
 - `notebooks/02_movimento_naturale.ipynb`: natalità, fecondità, nati, decessi, saldo naturale e letture regionali/provinciali.
-- `notebooks/03_migrazioni.ipynb`: flussi migratori, saldo migratorio, variazione della popolazione e stock nato all'estero.
+- `notebooks/03_migrazioni.ipynb`: flussi migratori, saldo migratorio, variazione della popolazione, stock per paese di nascita e stock per cittadinanza con dettaglio per nazione.
 - `notebooks/04_istruzione.ipynb`: distribuzione dei titoli di studio, fasce di età, sesso, confronto con popolazione totale e paesi UE.
 - `notebooks/05_territori_italiani.ipynb`: classifiche e serie regionali/provinciali per popolazione, struttura per età, nati, decessi, fecondità e saldo migratorio.
 - `notebooks/06_confronti_europei.ipynb`: classifiche UE e serie con mediana europea per popolazione, invecchiamento, dipendenza, fecondità e istruzione.
@@ -125,6 +133,7 @@ output/charts/
 - la configurazione vive negli script e nelle funzioni `main(...)`;
 - il package usa namespace package Python;
 - funzioni generali in `demografia/utils.py`;
+- i parametri modificabili dall'utente usano codici semplici e commentati;
 - fonti osservate, stime campionarie e proiezioni restano separate;
 - persone e trattamenti pensionistici restano separati;
 - cittadinanza, paese di nascita, provenienza e destinazione non sono variabili intercambiabili.

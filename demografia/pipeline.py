@@ -47,7 +47,7 @@ from demografia.sources import eurostat, istat, world_bank
 from demografia.sources.wpp import normalize_wpp_age_sex, read_wpp
 from demografia.territory import compute_territorial_age_structure, normalize_istat_population
 from demografia.transform import combine_population, normalize_eurostat_population
-from demografia.utils import save_table
+from demografia.utils import normalize_country_code, normalize_eurostat_geo_code, save_table
 from demografia.wpp_auto import download_wpp_age_sex
 
 
@@ -95,19 +95,20 @@ def pipeline_options(**overrides: Any) -> dict[str, Any]:
     options.update({key: value for key, value in overrides.items() if value is not None})
     if options["wpp_age_sex"] is not None:
         options["wpp_age_sex"] = Path(options["wpp_age_sex"])
-    options["eu_geos"] = tuple(options["eu_geos"])
+    options["eu_geos"] = tuple(normalize_eurostat_geo_code(geo) for geo in options["eu_geos"])
     options["regional_levels"] = tuple(options["regional_levels"])
+    options["regional_country_prefix"] = normalize_eurostat_geo_code(options["regional_country_prefix"])
     if options["regional_geos"] is not None:
-        options["regional_geos"] = tuple(options["regional_geos"])
-    options["migration_geos"] = tuple(options["migration_geos"] or options["eu_geos"])
+        options["regional_geos"] = tuple(normalize_eurostat_geo_code(geo) for geo in options["regional_geos"])
+    options["migration_geos"] = tuple(normalize_eurostat_geo_code(geo) for geo in (options["migration_geos"] or options["eu_geos"]))
     options["migration_citizenship_ages"] = tuple(options["migration_citizenship_ages"])
     options["migration_citizenship_groups"] = tuple(options["migration_citizenship_groups"])
     options["immigrant_population_ages"] = tuple(options["immigrant_population_ages"])
-    options["migrant_education_geos"] = tuple(options["migrant_education_geos"])
+    options["migrant_education_geos"] = tuple(normalize_eurostat_geo_code(geo) for geo in options["migrant_education_geos"])
     options["migrant_education_ages"] = tuple(options["migrant_education_ages"])
     options["migrant_education_birth_groups"] = tuple(options["migrant_education_birth_groups"])
     options["migrant_education_levels"] = tuple(options["migrant_education_levels"])
-    options["comparison_countries"] = tuple(options["comparison_countries"])
+    options["comparison_countries"] = tuple(normalize_country_code(country) for country in options["comparison_countries"])
     return options
 
 

@@ -8,6 +8,18 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from demografia.config import COUNTRY_NAMES, EU27_ISO3, FINAL_DIR, ROOT_DIR
+from demografia.utils import (
+    normalize_country_code,
+    normalize_eurostat_geo_code,
+    normalize_territory_key,
+    parametri_aree_istruzione_migranti,
+    parametri_disponibili,
+    parametri_paesi,
+    parametri_province,
+    parametri_regioni,
+    regional_options,
+    split_territory_key,
+)
 
 
 TABLE_FILES = {
@@ -29,6 +41,8 @@ OPTIONAL_TABLE_FILES = {
     "emigration": "emigration_profile",
     "immigration_citizenship": "immigration_citizenship_profile",
     "emigration_citizenship": "emigration_citizenship_profile",
+    "population_by_citizenship": "population_by_citizenship",
+    "population_by_country_of_birth": "population_by_country_of_birth",
     "migrant_education": "migrant_education_by_birth_region",
     "migrant_tertiary": "migrant_tertiary_share",
     "internal_migration_flows": "italy_internal_migration_flows",
@@ -87,8 +101,129 @@ CITIZENSHIP_GROUP_LABELS = {
     "NAT": "Cittadini del paese",
     "EU27_2020_FOR": "Cittadini altri paesi UE27",
     "NEU27_2020_FOR": "Cittadini paesi extra UE27",
+    "FOR_STLS": "Cittadini stranieri o apolidi",
+    "STLS": "Apolidi",
     "TOTAL": "Totale",
 }
+
+STOCK_CATEGORY_LABELS = {
+    "AFR": "Africa",
+    "AFR_C": "Africa centrale",
+    "AFR_E": "Africa orientale",
+    "AFR_N": "Africa settentrionale",
+    "AFR_S": "Africa meridionale",
+    "AFR_W": "Africa occidentale",
+    "AME": "America",
+    "AME_C": "America centrale",
+    "AME_N": "America settentrionale",
+    "AME_S": "America meridionale",
+    "ASI": "Asia",
+    "ASI_C": "Asia centrale",
+    "ASI_E": "Asia orientale",
+    "ASI_S": "Asia meridionale",
+    "ASI_S_E": "Asia sud-orientale",
+    "ASI_W": "Asia occidentale",
+    "AU_NZ": "Australia e Nuova Zelanda",
+    "CC9_23_FOR": "Paesi candidati UE",
+    "CRB": "Caraibi",
+    "CZ_SK": "Cecoslovacchia",
+    "EFTA_FOR": "Paesi EFTA",
+    "EU27_2020_FOR": "Altri paesi UE27",
+    "EUR": "Europa",
+    "EX_SU": "Ex Unione Sovietica",
+    "EX_YU": "Ex Jugoslavia",
+    "FOR": "Nati all'estero",
+    "FOR_STLS": "Cittadini stranieri o apolidi",
+    "MEL": "Melanesia",
+    "MIC": "Micronesia",
+    "NAT": "Nati nel paese / cittadini del paese",
+    "NEU27_2020_FOR": "Paesi extra UE27",
+    "OCE": "Oceania",
+    "OTH": "Altro",
+    "POL": "Polinesia",
+    "RNC": "Cittadinanza non riconosciuta",
+    "RS_ME": "Serbia e Montenegro",
+    "STLS": "Apolidi",
+    "TOTAL": "Totale residenti",
+    "UNK": "Sconosciuto",
+    "XK": "Kosovo",
+}
+
+STOCK_ALPHA2_LABELS = {
+    "AD": "Andorra",
+    "AE": "Emirati Arabi Uniti",
+    "AF": "Afghanistan",
+    "AL": "Albania",
+    "AM": "Armenia",
+    "AO": "Angola",
+    "AR": "Argentina",
+    "AT": "Austria",
+    "AU": "Australia",
+    "AZ": "Azerbaigian",
+    "BA": "Bosnia-Erzegovina",
+    "BD": "Bangladesh",
+    "BE": "Belgio",
+    "BG": "Bulgaria",
+    "BR": "Brasile",
+    "BY": "Bielorussia",
+    "CA": "Canada",
+    "CH": "Svizzera",
+    "CL": "Cile",
+    "CN": "Cina",
+    "CO": "Colombia",
+    "CU": "Cuba",
+    "DE": "Germania",
+    "DK": "Danimarca",
+    "DZ": "Algeria",
+    "EC": "Ecuador",
+    "EE": "Estonia",
+    "EG": "Egitto",
+    "EL": "Grecia",
+    "ES": "Spagna",
+    "ET": "Etiopia",
+    "FI": "Finlandia",
+    "FR": "Francia",
+    "GE": "Georgia",
+    "GH": "Ghana",
+    "HR": "Croazia",
+    "HU": "Ungheria",
+    "IE": "Irlanda",
+    "IL": "Israele",
+    "IN": "India",
+    "IQ": "Iraq",
+    "IR": "Iran",
+    "IT": "Italia",
+    "JP": "Giappone",
+    "KR": "Corea del Sud",
+    "LK": "Sri Lanka",
+    "MA": "Marocco",
+    "MD": "Moldova",
+    "MK": "Macedonia del Nord",
+    "MX": "Messico",
+    "NG": "Nigeria",
+    "NL": "Paesi Bassi",
+    "PE": "Peru",
+    "PH": "Filippine",
+    "PK": "Pakistan",
+    "PL": "Polonia",
+    "PT": "Portogallo",
+    "RO": "Romania",
+    "RS": "Serbia",
+    "RU": "Russia",
+    "SE": "Svezia",
+    "SI": "Slovenia",
+    "SK": "Slovacchia",
+    "SN": "Senegal",
+    "SY": "Siria",
+    "TN": "Tunisia",
+    "TR": "Turchia",
+    "UA": "Ucraina",
+    "UK": "Regno Unito",
+    "US": "Stati Uniti",
+    "VE": "Venezuela",
+}
+
+STOCK_AGGREGATE_CODES = set(STOCK_CATEGORY_LABELS) - {"XK"}
 
 SOURCE_NOTES = {
     "population": "Fonte: Eurostat demo_pjan e proj_23np.<br>Elaborazione di Nazareno Lecis.",
@@ -100,6 +235,11 @@ SOURCE_NOTES = {
     "migration_flows": (
         "Fonte: Eurostat migr_imm1ctz e migr_emi1ctz.<br>Elaborazione di Nazareno Lecis.<br>"
         "Nota: flussi annuali per età, sesso e cittadinanza; la cittadinanza estera è distinta tra UE27 ed extra UE27."
+    ),
+    "migrant_stock": (
+        "Fonte: Eurostat migr_pop1ctz e migr_pop3ctb.<br>Elaborazione di Nazareno Lecis.<br>"
+        "Nota: le tavole mostrano distribuzioni separate per cittadinanza e paese di nascita; "
+        "la vista per nazioni esclude continenti e aggregati UE/extra UE."
     ),
     "education": (
         "Fonte: Eurostat edat_lfse_03.<br>Elaborazione di Nazareno Lecis.<br>"
@@ -166,7 +306,8 @@ def load_notebook_tables(final_dir: Path | None = None) -> dict[str, pd.DataFram
 
 def country_name(iso3: str) -> str:
     """Return the Italian country label used in the charts."""
-    return COUNTRY_NAMES.get(str(iso3), str(iso3))
+    code = normalize_country_code(iso3)
+    return COUNTRY_NAMES.get(code, code)
 
 
 def birth_group_label(code: str) -> str:
@@ -267,7 +408,9 @@ def preferred_rows(rows: pd.DataFrame) -> pd.DataFrame:
 
 def territory_label(tables: dict[str, pd.DataFrame], territory: str) -> str:
     """Return a label for a country, region, or province code."""
-    level, code = territory.split(":", 1)
+    level, code = split_territory_key(territory)
+    if level == "none":
+        return "Nessun confronto"
     if level == "country":
         return country_name(code)
     for table_name in ("regional_age_structure", "regional_balance", "regional_fertility"):
@@ -282,7 +425,7 @@ def territory_label(tables: dict[str, pd.DataFrame], territory: str) -> str:
 
 def age_rows(tables: dict[str, pd.DataFrame], territory: str) -> pd.DataFrame:
     """Return age-structure rows for a country or Italian region."""
-    level, code = territory.split(":", 1)
+    level, code = split_territory_key(territory)
     if level == "country":
         rows = tables["age_structure"][tables["age_structure"]["iso3"].eq(code)].copy()
         if rows.empty:
@@ -299,7 +442,7 @@ def age_rows(tables: dict[str, pd.DataFrame], territory: str) -> pd.DataFrame:
 
 def balance_rows(tables: dict[str, pd.DataFrame], territory: str) -> pd.DataFrame:
     """Return demographic-balance rows for a country, region, or province."""
-    level, code = territory.split(":", 1)
+    level, code = split_territory_key(territory)
     if level == "country":
         rows = tables["balance"][tables["balance"]["iso3"].eq(code)].copy()
         rows = rows[rows.apply(continuous_country_scope, axis=1)]
@@ -310,7 +453,7 @@ def balance_rows(tables: dict[str, pd.DataFrame], territory: str) -> pd.DataFram
 
 def fertility_rows(tables: dict[str, pd.DataFrame], territory: str, indicator: str) -> pd.DataFrame:
     """Return fertility or birth-rate rows for a selected territory."""
-    level, code = territory.split(":", 1)
+    level, code = split_territory_key(territory)
     if level == "country":
         rows = tables["fertility"][tables["fertility"]["iso3"].eq(code)].copy()
         rows = rows[rows.apply(continuous_country_scope, axis=1)]
@@ -326,8 +469,9 @@ def fertility_rows(tables: dict[str, pd.DataFrame], territory: str, indicator: s
 
 def metric_rows(tables: dict[str, pd.DataFrame], territory: str, metric: str) -> pd.DataFrame:
     """Return a year/value table for the metric used in line and rank charts."""
+    territory = normalize_territory_key(territory)
     if metric == "tertiary_25_64":
-        level, code = territory.split(":", 1)
+        level, code = split_territory_key(territory)
         if level != "country":
             return pd.DataFrame(columns=["year", "metric_value"])
         rows = tables["education"]
@@ -377,7 +521,7 @@ def metric_rows(tables: dict[str, pd.DataFrame], territory: str, metric: str) ->
         rows["metric_value"] = rows["value"]
         return rows.sort_values("year")
     if metric in {"life_expectancy_birth", "life_expectancy_65"}:
-        level, code = territory.split(":", 1)
+        level, code = split_territory_key(territory)
         if level != "country" or "life_expectancy" not in tables:
             return pd.DataFrame(columns=["year", "metric_value"])
         rows = tables["life_expectancy"]
@@ -436,7 +580,7 @@ def finest_non_overlapping_age_rows(rows: pd.DataFrame) -> pd.DataFrame:
 
 def kebab_data(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
+    territory: str = "ITA",
     year: int = 2024,
     population_kind: str = "total",
 ) -> pd.DataFrame:
@@ -450,7 +594,7 @@ def kebab_data(
             & rows["sex"].isin(["M", "F"])
         ].copy()
     else:
-        level, code = territory.split(":", 1)
+        level, code = split_territory_key(territory)
         source = tables["regional_population"] if level == "region" else tables["population"]
         match = source["geo_code"].eq(code) if level == "region" else source["iso3"].eq(code)
         subset = source[match & source["year"].astype(int).eq(int(year)) & source["sex"].isin(["M", "F"])].copy()
@@ -475,7 +619,7 @@ def kebab_data(
 
 def fig_kebab(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
+    territory: str = "ITA",
     year: int = 2024,
     population_kind: str = "total",
 ) -> go.Figure:
@@ -510,7 +654,7 @@ def fig_kebab(
 
 def fig_kebab_animation(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
+    territory: str = "ITA",
     start_year: int = 1960,
     end_year: int = 2050,
     step: int = 5,
@@ -566,14 +710,14 @@ def fig_kebab_animation(
 
 def fig_population_series(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
     metric: str = "population_total",
 ) -> go.Figure:
     """Draw one demographic metric over time for a territory and comparison."""
     fig = go.Figure()
     for selected, dash in ((territory, "solid"), (compare, "dash")):
-        if selected == "none":
+        if normalize_territory_key(selected) == "none":
             continue
         rows = metric_rows(tables, selected, metric)
         fig.add_scatter(
@@ -590,14 +734,14 @@ def fig_population_series(
 
 def fig_age_shares(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw population shares by broad age class."""
     fig = go.Figure()
     specs = [("0-14", "share_0_14"), ("15-64", "share_15_64"), ("65+", "share_65_plus"), ("80+", "share_80_plus")]
     for selected, dash in ((territory, "solid"), (compare, "dash")):
-        if selected == "none":
+        if normalize_territory_key(selected) == "none":
             continue
         rows = preferred_rows(age_rows(tables, selected))
         for label, column in specs:
@@ -609,8 +753,8 @@ def fig_age_shares(
 
 def fig_age_distribution(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw mean age, median age and distribution quantiles."""
     rows = preferred_rows(age_rows(tables, territory))
@@ -624,7 +768,7 @@ def fig_age_distribution(
         ("P90", "age_p90", "dot"),
     ]:
         fig.add_scatter(x=rows["year"], y=rows[column], mode="lines+markers", name=f"{territory_label(tables, territory)} {label}", line={"dash": dash})
-    if compare != "none":
+    if normalize_territory_key(compare) != "none":
         comparison = preferred_rows(age_rows(tables, compare))
         fig.add_scatter(x=comparison["year"], y=comparison["median_age"], mode="lines+markers", name=f"{territory_label(tables, compare)} mediana", line={"dash": "dash"})
     fig.update_yaxes(title="Anni")
@@ -634,8 +778,8 @@ def fig_age_distribution(
 
 def fig_dependency(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw youth, old-age, and total dependency ratios."""
     fig = go.Figure()
@@ -643,7 +787,7 @@ def fig_dependency(
     fig.add_scatter(x=rows["year"], y=rows["dependency_youth"], mode="lines+markers", name=f"{territory_label(tables, territory)} giovani")
     fig.add_scatter(x=rows["year"], y=rows["dependency_old"], mode="lines+markers", name=f"{territory_label(tables, territory)} anziani")
     fig.add_scatter(x=rows["year"], y=rows["dependency_total"], mode="lines+markers", name=f"{territory_label(tables, territory)} totale")
-    if compare != "none":
+    if normalize_territory_key(compare) != "none":
         comparison = preferred_rows(age_rows(tables, compare))
         fig.add_scatter(x=comparison["year"], y=comparison["dependency_youth"], mode="lines+markers", name=f"{territory_label(tables, compare)} giovani", line={"dash": "dash"})
         fig.add_scatter(x=comparison["year"], y=comparison["dependency_old"], mode="lines+markers", name=f"{territory_label(tables, compare)} anziani", line={"dash": "dash"})
@@ -651,17 +795,6 @@ def fig_dependency(
     fig.update_yaxes(title="Persone ogni 100 in età 15-64")
     fig.update_xaxes(title="Anno")
     return apply_layout(fig, "Dipendenza demografica", SOURCE_NOTES["age"])
-
-
-def regional_options(tables: dict[str, pd.DataFrame], level: str = "province") -> pd.DataFrame:
-    """Return available regions or provinces for territorial charts."""
-    frames = []
-    for name in ("regional_balance", "regional_fertility", "regional_age_structure"):
-        table = tables.get(name, pd.DataFrame())
-        if {"geo_level", "geo_code", "geo_name"}.issubset(table.columns):
-            frames.append(table[["geo_level", "geo_code", "geo_name"]])
-    options = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
-    return options[options["geo_level"].eq(level)].sort_values("geo_name")
 
 
 def fig_regional_rank(
@@ -703,14 +836,14 @@ def fig_regional_rank(
 
 def fig_regional_series(
     tables: dict[str, pd.DataFrame],
-    focus: str = "province:ITC11",
-    compare: str = "province:ITC4C",
+    focus: str = "ITC11",
+    compare: str = "ITC4C",
     metric: str = "live_births",
 ) -> go.Figure:
     """Compare two regional or provincial series."""
     fig = go.Figure()
     for territory, dash in ((focus, "solid"), (compare, "dash")):
-        if territory == "none":
+        if normalize_territory_key(territory) == "none":
             continue
         rows = metric_rows(tables, territory, metric)
         fig.add_scatter(x=rows["year"], y=scaled_series(rows["metric_value"], metric), mode="lines+markers", name=territory_label(tables, territory), line={"dash": dash})
@@ -721,13 +854,13 @@ def fig_regional_series(
 
 def fig_fertility(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw fertility and crude birth rate."""
     fig = go.Figure()
     for selected, dash in ((territory, "solid"), (compare, "dash")):
-        if selected == "none":
+        if normalize_territory_key(selected) == "none":
             continue
         fertility = fertility_rows(tables, selected, "total_fertility_rate")
         birth_rate = fertility_rows(tables, selected, "balance_gbirthrt")
@@ -740,13 +873,13 @@ def fig_fertility(
 
 def fig_births_deaths(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw births, deaths and natural balance."""
     fig = go.Figure()
     for selected, dash in ((territory, "solid"), (compare, "dash")):
-        if selected == "none":
+        if normalize_territory_key(selected) == "none":
             continue
         rows = balance_rows(tables, selected)
         for column in ("live_births", "deaths", "natural_change"):
@@ -758,8 +891,8 @@ def fig_births_deaths(
 
 def fig_migration(
     tables: dict[str, pd.DataFrame],
-    territory: str = "country:ITA",
-    compare: str = "country:ESP",
+    territory: str = "ITA",
+    compare: str = "ESP",
 ) -> go.Figure:
     """Draw immigration, estimated emigration and migration balance."""
     fig = go.Figure()
@@ -770,7 +903,7 @@ def fig_migration(
         estimated_emigration = rows["immigration"] - rows["net_migration_adjustment"]
         fig.add_bar(x=rows["year"], y=-estimated_emigration / 1_000, name=f"{label} emigrazione stimata")
     fig.add_scatter(x=rows["year"], y=rows["net_migration_adjustment"] / 1_000, mode="lines+markers", name=f"{label} saldo")
-    if compare != "none":
+    if normalize_territory_key(compare) != "none":
         comparison = balance_rows(tables, compare)
         fig.add_scatter(x=comparison["year"], y=comparison["net_migration_adjustment"] / 1_000, mode="lines+markers", name=f"{territory_label(tables, compare)} saldo", line={"dash": "dash"})
     fig.update_layout(barmode="relative")
@@ -792,6 +925,7 @@ def migration_citizenship_rows(
     year: int | None = None,
 ) -> pd.DataFrame:
     """Return migration rows by age, sex, and citizenship for one country."""
+    country = normalize_country_code(country)
     table_name = "immigration_citizenship" if flow == "immigration" else "emigration_citizenship"
     rows = tables.get(table_name, pd.DataFrame())
     if rows.empty or not {"iso3", "year", "sex", "value"}.issubset(rows.columns):
@@ -816,6 +950,7 @@ def _total_age_rows(rows: pd.DataFrame) -> pd.DataFrame:
 
 def _migration_year(tables: dict[str, pd.DataFrame], flow: str, country: str, sex: str, year: int | None) -> int | None:
     """Return the selected year or the latest available year for a flow."""
+    country = normalize_country_code(country)
     if year is not None:
         return int(year)
     rows = migration_citizenship_rows(tables, flow=flow, country=country, sex=sex, year=None)
@@ -833,6 +968,8 @@ def fig_migration_age_profile(
     year: int | None = None,
 ) -> go.Figure:
     """Draw the age profile of immigration or emigration flows."""
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
     selected_year = _migration_year(tables, flow, country, sex, year)
     title_year = selected_year if selected_year is not None else "ND"
     fig = go.Figure()
@@ -871,6 +1008,8 @@ def fig_migration_citizenship_profile(
     year: int | None = None,
 ) -> go.Figure:
     """Draw migration flows by citizenship group for one or two countries."""
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
     selected_year = _migration_year(tables, flow, country, sex, year)
     title_year = selected_year if selected_year is not None else "ND"
     order = ["NAT", "EU27_2020_FOR", "NEU27_2020_FOR"]
@@ -896,6 +1035,187 @@ def fig_migration_citizenship_profile(
     return apply_layout(fig, title, SOURCE_NOTES["migration_flows"], 620)
 
 
+def stock_category_label(code: object, basis: str | None = None) -> str:
+    """Return a readable label for migrant-stock categories.
+
+    Parameters
+    ----------
+    code:
+        Eurostat category code. Country categories usually use two-letter
+        codes such as `RO`, `AL` or `MA`; aggregate categories use codes such
+        as `EU27_2020_FOR`, `FOR` or `TOTAL`.
+    basis:
+        Optional stock dimension. Use `country_of_birth` for country of birth
+        and `citizenship` for citizenship. The `NAT` code changes meaning
+        depending on this dimension.
+    """
+    text = str(code or "").strip().upper()
+    if basis == "country_of_birth" and text == "NAT":
+        return "Nati nel paese"
+    if basis == "citizenship" and text == "NAT":
+        return "Cittadini del paese"
+    if text in STOCK_CATEGORY_LABELS:
+        return STOCK_CATEGORY_LABELS[text]
+    if text in STOCK_ALPHA2_LABELS:
+        return STOCK_ALPHA2_LABELS[text]
+    return text
+
+
+def _stock_table_name(basis: str) -> str:
+    """Map a user-facing stock dimension to the notebook table key."""
+    normalized = str(basis or "").strip().lower()
+    if normalized in {"country_of_birth", "birth", "nascita", "paese_nascita"}:
+        return "population_by_country_of_birth"
+    if normalized in {"citizenship", "cittadinanza"}:
+        return "population_by_citizenship"
+    raise ValueError("basis deve essere 'country_of_birth' oppure 'citizenship'")
+
+
+def _stock_basis_label(basis: str) -> str:
+    """Return the Italian label for the stock dimension."""
+    table_name = _stock_table_name(basis)
+    return "paese di nascita" if table_name == "population_by_country_of_birth" else "cittadinanza"
+
+
+def _is_stock_country_category(code: object) -> bool:
+    """Return True for rows that represent a single nation rather than an aggregate."""
+    text = str(code or "").strip().upper()
+    return len(text) == 2 and text not in STOCK_AGGREGATE_CODES
+
+
+def _stock_country_slice(
+    tables: dict[str, pd.DataFrame],
+    basis: str,
+    country: str,
+    sex: str,
+    year: int | None,
+) -> tuple[pd.DataFrame, int | None, float | None]:
+    """Return stock rows for one country, sex and year, plus the total denominator."""
+    table_name = _stock_table_name(basis)
+    country = normalize_country_code(country)
+    rows = tables.get(table_name, pd.DataFrame())
+    columns = list(rows.columns) if not rows.empty else ["iso3", "year", "sex", "category", "value"]
+    if country == "none" or rows.empty or not {"iso3", "year", "sex", "category", "value"}.issubset(rows.columns):
+        return pd.DataFrame(columns=columns), None, None
+    selected = rows[
+        rows["iso3"].astype(str).eq(country)
+        & rows["sex"].astype(str).str.upper().eq(str(sex).upper())
+    ].copy()
+    selected = _total_age_rows(selected)
+    if selected.empty:
+        return selected, None, None
+    selected_year = int(year) if year is not None else int(pd.to_numeric(selected["year"], errors="coerce").max())
+    selected = selected[selected["year"].astype(int).eq(selected_year)].copy()
+    selected["value"] = pd.to_numeric(selected["value"], errors="coerce")
+    selected = selected.dropna(subset=["value"])
+    total_row = selected[selected["category"].astype(str).str.upper().eq("TOTAL")]
+    total = float(total_row["value"].sum()) if not total_row.empty else float(selected["value"].sum())
+    return selected, selected_year, total
+
+
+def _filter_stock_detail(rows: pd.DataFrame, detail: str, selected_country: str | None = None) -> pd.DataFrame:
+    """Filter stock rows according to the requested category detail."""
+    mode = str(detail or "countries").strip().lower()
+    if rows.empty:
+        return rows.copy()
+    categories = rows["category"].astype(str).str.upper()
+    if mode == "countries":
+        result = rows[categories.map(_is_stock_country_category)].copy()
+        if selected_country is not None:
+            own_country_code = normalize_eurostat_geo_code(selected_country)
+            result = result[~result["category"].astype(str).str.upper().eq(own_country_code)]
+        return result
+    if mode == "aggregates":
+        return rows[~categories.map(_is_stock_country_category)].copy()
+    return rows.copy()
+
+
+def _stock_measure_value(values: pd.Series, total: float | None, measure: str) -> pd.Series:
+    """Convert stock counts into the requested chart measure."""
+    numeric = pd.to_numeric(values, errors="coerce")
+    if measure == "percent_total":
+        return (numeric / total) * 100 if total else numeric * np.nan
+    return numeric / 1_000
+
+
+def fig_migrant_stock_categories(
+    tables: dict[str, pd.DataFrame],
+    basis: str = "country_of_birth",
+    country: str = "ITA",
+    compare: str = "none",
+    sex: str = "T",
+    year: int | None = None,
+    detail: str = "countries",
+    measure: str = "absolute",
+    limit: int = 25,
+) -> go.Figure:
+    """Rank resident stock by nation of birth or citizenship.
+
+    Parameters
+    ----------
+    tables:
+        Dictionary returned by `load_notebook_tables`.
+    basis:
+        Dimension to display. Use `country_of_birth` for paese di nascita or
+        `citizenship` for cittadinanza.
+    country:
+        Main country code in ISO3 form, for example `ITA`.
+    compare:
+        Optional comparison country in ISO3 form, for example `ESP`. Use
+        `none` to disable the comparison.
+    sex:
+        Sex code from Eurostat: `T`, `M` or `F`.
+    year:
+        Calendar year. If omitted, the latest available year for the main
+        country and selected sex is used.
+    detail:
+        Category detail: `countries` keeps single nations, `aggregates` keeps
+        Eurostat aggregates, `all` keeps both.
+    measure:
+        Display measure: `absolute` shows thousands of residents;
+        `percent_total` shows the share of all residents in the selected
+        country, sex and year.
+    limit:
+        Maximum number of categories shown, ranked by the main country.
+    """
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
+    measure = str(measure or "absolute").strip().lower()
+    primary, selected_year, primary_total = _stock_country_slice(tables, basis, country, sex, year)
+    primary = _filter_stock_detail(primary, detail, country)
+    if primary.empty or selected_year is None:
+        title = f"Stock residenti per {_stock_basis_label(basis)}"
+        return apply_layout(go.Figure(), title, SOURCE_NOTES["migrant_stock"], 760)
+
+    ranked = primary.groupby("category", as_index=False)["value"].sum().sort_values("value", ascending=False)
+    categories = ranked.head(int(limit))["category"].astype(str).tolist()
+    categories = list(reversed(categories))
+    category_labels = [stock_category_label(code, _stock_table_name(basis).replace("population_by_", "")) for code in categories]
+
+    fig = go.Figure()
+    for selected_country, dash in ((country, "solid"), (compare, "dash")):
+        if selected_country == "none":
+            continue
+        rows, country_year, total = _stock_country_slice(tables, basis, selected_country, sex, selected_year)
+        rows = _filter_stock_detail(rows, detail, selected_country)
+        values = rows.groupby("category")["value"].sum().to_dict()
+        display = pd.Series([values.get(code, np.nan) for code in categories], dtype="float64")
+        fig.add_bar(
+            x=_stock_measure_value(display, total, measure),
+            y=category_labels,
+            orientation="h",
+            name=f"{country_name(selected_country)} {country_year}",
+            opacity=1.0 if dash == "solid" else 0.72,
+        )
+
+    axis_title = "% residenti" if measure == "percent_total" else "Migliaia di persone"
+    fig.update_xaxes(title=axis_title, ticksuffix="%" if measure == "percent_total" else "")
+    fig.update_yaxes(title="")
+    detail_label = "nazioni" if detail == "countries" else "categorie"
+    title = f"Residenti per {_stock_basis_label(basis)} e {detail_label} - {country_name(country)}, {selected_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migrant_stock"], max(680, len(categories) * 24 + 260))
+
+
 def fig_migrant_education_by_birth(
     tables: dict[str, pd.DataFrame],
     geo_code: str = "IT",
@@ -904,6 +1224,7 @@ def fig_migrant_education_by_birth(
     year: int | None = None,
 ) -> go.Figure:
     """Draw education distribution by country-of-birth group."""
+    geo_code = normalize_eurostat_geo_code(geo_code)
     rows = tables.get("migrant_education", pd.DataFrame())
     if rows.empty:
         return apply_layout(go.Figure(), "Titoli di studio per paese di nascita", SOURCE_NOTES["migrant_education"], 620)
@@ -958,6 +1279,7 @@ def fig_migrant_tertiary_region(
     limit: int = 21,
 ) -> go.Figure:
     """Rank NUTS2 regions by tertiary-education share among a birth group."""
+    country = normalize_country_code(country)
     rows = _migrant_tertiary_rows(tables)
     if rows.empty:
         return apply_layout(go.Figure(), "Laureati per regione e paese di nascita", SOURCE_NOTES["migrant_education"], 760)
@@ -1074,15 +1396,24 @@ def fig_education_distribution(
     year: int | None = None,
 ) -> go.Figure:
     """Draw education attainment distribution for two countries."""
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
     rows = tables["education"]
     if year is None:
         year = int(rows[rows["iso3"].eq(country)]["year"].max())
     primary = education_display_rows(rows[rows["iso3"].eq(country) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["year"].astype(int).eq(int(year))])
-    comparison = education_display_rows(rows[rows["iso3"].eq(compare) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["year"].astype(int).eq(int(year))])
+    comparison = (
+        education_display_rows(rows[rows["iso3"].eq(compare) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["year"].astype(int).eq(int(year))])
+        if compare != "none"
+        else pd.DataFrame(columns=primary.columns)
+    )
     levels = list(dict.fromkeys(primary["education_level"].tolist() + comparison["education_level"].tolist()))
     levels = sorted(levels, key=lambda level: EDUCATION_ORDER.get(level, 999))
     fig = go.Figure()
-    for data, label in ((primary, country_name(country)), (comparison, country_name(compare))):
+    series = [(primary, country_name(country))]
+    if compare != "none":
+        series.append((comparison, country_name(compare)))
+    for data, label in series:
         mapped = data.set_index("education_level")["value"].to_dict()
         fig.add_bar(x=[EDUCATION_LABELS.get(level, level) for level in levels], y=[mapped.get(level) for level in levels], name=label)
     fig.update_yaxes(title="% popolazione")
@@ -1099,13 +1430,16 @@ def fig_education_trend(
     education_level: str = "tertiary",
 ) -> go.Figure:
     """Draw education attainment over time and total population."""
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
     rows = tables["education"]
     primary = rows[rows["iso3"].eq(country) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["education_level"].astype(str).eq(education_level)].sort_values("year")
-    comparison = rows[rows["iso3"].eq(compare) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["education_level"].astype(str).eq(education_level)].sort_values("year")
-    population = preferred_rows(age_rows(tables, f"country:{country}"))
+    population = preferred_rows(age_rows(tables, country))
     fig = go.Figure()
     fig.add_scatter(x=primary["year"], y=primary["value"], mode="lines+markers", name=f"{country_name(country)} - {EDUCATION_LABELS.get(education_level, education_level)}")
-    fig.add_scatter(x=comparison["year"], y=comparison["value"], mode="lines+markers", name=country_name(compare), line={"dash": "dash"})
+    if compare != "none":
+        comparison = rows[rows["iso3"].eq(compare) & rows["age_label"].astype(str).eq(age_label_value) & rows["sex"].astype(str).eq(sex) & rows["education_level"].astype(str).eq(education_level)].sort_values("year")
+        fig.add_scatter(x=comparison["year"], y=comparison["value"], mode="lines+markers", name=country_name(compare), line={"dash": "dash"})
     fig.add_scatter(x=population["year"], y=population["population_total"] / 1_000_000, mode="lines+markers", name=f"Popolazione totale {country_name(country)}", yaxis="y2", line={"dash": "dot"})
     fig.update_layout(yaxis={"title": "% livello selezionato"}, yaxis2={"title": "Milioni residenti", "overlaying": "y", "side": "right"})
     fig.update_xaxes(title="Anno")
@@ -1118,6 +1452,8 @@ def fig_life_expectancy(
     compare: str = "ESP",
 ) -> go.Figure:
     """Draw life expectancy at birth and remaining life expectancy at age 65."""
+    country = normalize_country_code(country)
+    compare = normalize_country_code(compare)
     fig = go.Figure()
     for iso3, dash in ((country, "solid"), (compare, "dash")):
         if iso3 == "none":
@@ -1126,7 +1462,7 @@ def fig_life_expectancy(
             ("life_expectancy_birth", "alla nascita"),
             ("life_expectancy_65", "a 65 anni"),
         ):
-            rows = metric_rows(tables, f"country:{iso3}", metric)
+            rows = metric_rows(tables, iso3, metric)
             fig.add_scatter(
                 x=rows["year"],
                 y=rows["metric_value"],
@@ -1155,7 +1491,7 @@ def europe_metric_table(tables: dict[str, pd.DataFrame], metric: str) -> pd.Data
     for iso3 in sorted(tables["age_structure"]["iso3"].dropna().unique()):
         if iso3 not in EU27_ISO3:
             continue
-        data = metric_rows(tables, f"country:{iso3}", metric)
+        data = metric_rows(tables, iso3, metric)
         if not data.empty:
             data = data.assign(iso3=iso3, geo_name=country_name(iso3))
             pieces.append(data)
@@ -1184,12 +1520,16 @@ def fig_europe_series(
     metric: str = "share_65_plus",
 ) -> go.Figure:
     """Compare Italy, a selected country, and the yearly European median."""
+    country = normalize_country_code(country)
     rows = europe_metric_table(tables, metric)
     median_by_year = rows.groupby("year", as_index=False)["metric_value"].median()
     fig = go.Figure()
-    for iso3, dash in (("ITA", "solid"), (country, "solid")):
-        data = metric_rows(tables, f"country:{iso3}", metric)
-        fig.add_scatter(x=data["year"], y=scaled_series(data["metric_value"], metric), mode="lines+markers", name=country_name(iso3), line={"dash": dash})
+    selected_countries = list(dict.fromkeys(["ITA", country]))
+    for iso3 in selected_countries:
+        if iso3 == "none":
+            continue
+        data = metric_rows(tables, iso3, metric)
+        fig.add_scatter(x=data["year"], y=scaled_series(data["metric_value"], metric), mode="lines+markers", name=country_name(iso3), line={"dash": "solid"})
     fig.add_scatter(x=median_by_year["year"], y=scaled_series(median_by_year["metric_value"], metric), mode="lines+markers", name="Mediana UE", line={"dash": "dash"})
     fig.update_yaxes(title=METRICS[metric]["axis"])
     fig.update_xaxes(title="Anno")
