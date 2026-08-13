@@ -2,12 +2,14 @@ import pandas as pd
 
 from demografia.final_tables import (
     build_demographic_balance_wide,
+    build_migrant_tertiary_share,
     build_migration_summary,
     enrich_population_schema,
     normalize_eurostat_demographic_balance,
     normalize_eurostat_education_attainment,
     normalize_eurostat_fertility,
     normalize_eurostat_migration,
+    normalize_eurostat_migrant_education,
     normalize_eurostat_regional_population,
 )
 from demografia.sources import eurostat
@@ -49,6 +51,69 @@ def test_migrant_stock_accepts_birth_country_filter(monkeypatch):
     assert captured["filters"]["sex"] == ("M", "F")
 
 
+def test_migration_citizenship_flows_pin_age_definition(monkeypatch):
+    captured = {}
+
+    def fake_fetch(dataset, filters, start_year, end_year, refresh, chunk_size):
+        captured["dataset"] = dataset
+        captured["filters"] = filters
+        captured["start_year"] = start_year
+        captured["end_year"] = end_year
+        captured["refresh"] = refresh
+        captured["chunk_size"] = chunk_size
+        return pd.DataFrame()
+
+    monkeypatch.setattr(eurostat, "fetch", fake_fetch)
+
+    eurostat.migration_citizenship_flows(
+        "immigration_citizenship",
+        geos=("IT",),
+        start_year=2020,
+        end_year=2024,
+        ages=("TOTAL", "Y25-29"),
+        citizenships=("TOTAL", "NAT"),
+        refresh=False,
+        chunk_size=1,
+    )
+
+    assert captured["dataset"] == "migr_imm1ctz"
+    assert captured["filters"]["agedef"] == "COMPLET"
+    assert captured["filters"]["age"] == ("TOTAL", "Y25-29")
+    assert captured["filters"]["citizen"] == ("TOTAL", "NAT")
+
+
+def test_migrant_education_by_birth_region_filters(monkeypatch):
+    captured = {}
+
+    def fake_fetch(dataset, filters, start_year, end_year, refresh, chunk_size):
+        captured["dataset"] = dataset
+        captured["filters"] = filters
+        captured["start_year"] = start_year
+        captured["end_year"] = end_year
+        captured["refresh"] = refresh
+        captured["chunk_size"] = chunk_size
+        return pd.DataFrame()
+
+    monkeypatch.setattr(eurostat, "fetch", fake_fetch)
+
+    eurostat.migrant_education_by_birth_region(
+        geos=("IT", "ITC4"),
+        start_year=2020,
+        end_year=2024,
+        ages=("Y25-64",),
+        birth_groups=("NAT", "FOR"),
+        education_levels=("ED5-8",),
+        refresh=False,
+        chunk_size=2,
+    )
+
+    assert captured["dataset"] == "edat_lfs_9917"
+    assert captured["filters"]["geo"] == ("IT", "ITC4")
+    assert captured["filters"]["c_birth"] == ("NAT", "FOR")
+    assert captured["filters"]["isced11"] == ("ED5-8",)
+    assert captured["filters"]["unit"] == "PC"
+
+
 def test_fertility_normalization():
     raw = pd.DataFrame(
         {
@@ -84,10 +149,24 @@ def test_demographic_balance_identity():
 
 def test_migration_summary():
     raw_in = pd.DataFrame(
-        {"geo": ["IT"], "time": [2023], "sex": ["T"], "unit": ["NR"], "value": [10]}
+        {
+            "geo": ["IT", "IT"],
+            "time": [2023, 2023],
+            "age": ["TOTAL", "Y25-29"],
+            "sex": ["T", "T"],
+            "unit": ["NR", "NR"],
+            "value": [10, 3],
+        }
     )
     raw_out = pd.DataFrame(
-        {"geo": ["IT"], "time": [2023], "sex": ["T"], "unit": ["NR"], "value": [4]}
+        {
+            "geo": ["IT", "IT"],
+            "time": [2023, 2023],
+            "age": ["TOTAL", "Y25-29"],
+            "sex": ["T", "T"],
+            "unit": ["NR", "NR"],
+            "value": [4, 2],
+        }
     )
     summary = build_migration_summary(
         normalize_eurostat_migration(raw_in, "immigration"),
@@ -114,6 +193,34 @@ def test_education_attainment_normalization():
     assert result.iloc[0]["iso3"] == "ITA"
     assert result.iloc[0]["age_low"] == 25
     assert result.iloc[0]["education_level"] == "tertiary"
+
+
+def test_migrant_education_normalization_and_tertiary_share():
+    raw = pd.DataFrame(
+        {
+            "geo": ["ITC4"],
+            "geo_label": ["Lombardia"],
+            "time": [2024],
+            "age": ["Y25-64"],
+            "sex": ["T"],
+            "c_birth": ["FOR"],
+            "c_birth_label": ["Foreign country"],
+            "isced11": ["ED5-8"],
+            "isced11_label": ["Tertiary education (levels 5-8)"],
+            "unit": ["PC"],
+            "value": [18.5],
+            "dataset": ["edat_lfs_9917"],
+        }
+    )
+    result = normalize_eurostat_migrant_education(raw)
+    tertiary = build_migrant_tertiary_share(result)
+
+    assert result.iloc[0]["geo_level"] == "region"
+    assert result.iloc[0]["geo_code"] == "ITC4"
+    assert result.iloc[0]["iso3"] == "ITA"
+    assert result.iloc[0]["country_of_birth_group"] == "FOR"
+    assert result.iloc[0]["education_level"] == "tertiary"
+    assert tertiary.iloc[0]["tertiary_share"] == 18.5
 
 
 def test_regional_population_normalization():

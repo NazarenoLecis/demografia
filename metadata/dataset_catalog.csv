@@ -6,9 +6,14 @@ demographic_balance_long,Eurostat,demo_gind,implemented,country-year-indicator,L
 demographic_balance,Eurostat,demo_gind,implemented,country-year,Wide balance and identity residual where components are available
 immigration_profile,Eurostat,migr_imm5prv,implemented_optional,country-year-age-sex-profile,Enabled with include-migration
 emigration_profile,Eurostat,migr_emi4ctb,implemented_optional,country-year-age-sex-profile,Enabled with include-migration
+immigration_citizenship_profile,Eurostat,migr_imm1ctz,implemented_optional,country-year-age-sex-citizenship,Immigration by age sex and citizenship group with one age definition
+emigration_citizenship_profile,Eurostat,migr_emi1ctz,implemented_optional,country-year-age-sex-citizenship,Emigration by age sex and citizenship group with one age definition
 migration_summary,Derived,migr_imm5prv;migr_emi4ctb,implemented_optional,country-year,Immigration emigration and net migration
 population_by_citizenship,Eurostat,migr_pop1ctz,implemented_optional,country-year-age-sex-category,Citizenship kept separate from country of birth
 population_by_country_of_birth,Eurostat,migr_pop3ctb,implemented_optional,country-year-age-sex-category,Country of birth kept separate from citizenship
+immigrant_population_age_sex,Eurostat,migr_pop3ctb,implemented_optional,country-year-age-sex-birth-group,Foreign-born residents by age and sex for kebab charts
+migrant_education_by_birth_region,Eurostat,edat_lfs_9917,implemented_optional,territory-year-age-sex-birth-group-ISCED,Survey percentages by country of birth and NUTS2 region
+migrant_tertiary_share,Derived,edat_lfs_9917,implemented_optional,territory-year-age-sex-birth-group,Tertiary education share among selected birth groups
 projection_inventory,Derived,proj_23np;WPP2024,implemented,source-vintage-scenario-country,Projection coverage and horizon
 international_demographic_indicators,World Bank WDI,configured indicator panel,implemented,country-year-indicator,Full union of EU27 and OECD38
 italy_population_age_sex_territorial,ISTAT,selected SDMX dataflow,implemented_configurable,territory-year-age-sex,Dataflow and key can be selected after official catalog discovery

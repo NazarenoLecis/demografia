@@ -77,9 +77,14 @@ output/data/final/
   education_attainment.*
   immigration_profile.*
   emigration_profile.*
+  immigration_citizenship_profile.*
+  emigration_citizenship_profile.*
   migration_summary.*
   population_by_citizenship.*
   population_by_country_of_birth.*
+  immigrant_population_age_sex.*
+  migrant_education_by_birth_region.*
+  migrant_tertiary_share.*
   projection_inventory.*
 
   istat_demographic_dataflows.*

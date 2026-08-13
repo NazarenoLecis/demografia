@@ -5,6 +5,10 @@ from demografia.notebook_charts import (
     apply_layout,
     education_display_rows,
     europe_metric_table,
+    fig_migrant_education_by_birth,
+    fig_migrant_tertiary_region,
+    fig_migration_age_profile,
+    fig_migration_citizenship_profile,
     finest_non_overlapping_age_rows,
     metric_rows,
 )
@@ -92,3 +96,52 @@ def test_education_display_rows_uses_level_order_and_avoids_secondary_overlap():
         "upper_secondary_vocational",
         "tertiary",
     ]
+
+
+def test_migration_detail_figures_use_age_and_citizenship_tables():
+    tables = {
+        "immigration_citizenship": pd.DataFrame(
+            [
+                {"iso3": "ITA", "year": 2024, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "citizenship": "NAT", "value": 50},
+                {"iso3": "ITA", "year": 2024, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "citizenship": "EU27_2020_FOR", "value": 20},
+                {"iso3": "ITA", "year": 2024, "sex": "T", "age_low": pd.NA, "age_high": pd.NA, "citizenship": "NEU27_2020_FOR", "value": 80},
+                {"iso3": "ITA", "year": 2024, "sex": "T", "age_low": 25, "age_high": 29, "citizenship": "TOTAL", "value": 30},
+                {"iso3": "ITA", "year": 2024, "sex": "T", "age_low": 30, "age_high": 34, "citizenship": "TOTAL", "value": 40},
+            ]
+        )
+    }
+
+    age_fig = fig_migration_age_profile(tables, country="ITA", compare="none", year=2024)
+    citizenship_fig = fig_migration_citizenship_profile(tables, country="ITA", compare="none", year=2024)
+
+    assert len(age_fig.data) == 1
+    assert list(age_fig.data[0].x) == ["25-29", "30-34"]
+    assert len(citizenship_fig.data) == 1
+    assert "Cittadini del paese" in list(citizenship_fig.data[0].x)
+    assert "Fonte: Eurostat migr_imm1ctz" in citizenship_fig.layout.annotations[0].text
+
+
+def test_migrant_education_figures_use_birth_group_and_region():
+    migrant_education = pd.DataFrame(
+        [
+            {"geo_level": "country", "geo_code": "IT", "geo_name": "Italia", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "NAT", "education_level": "low_education", "value": 30},
+            {"geo_level": "country", "geo_code": "IT", "geo_name": "Italia", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "NAT", "education_level": "tertiary", "value": 25},
+            {"geo_level": "country", "geo_code": "IT", "geo_name": "Italia", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "FOR", "education_level": "low_education", "value": 45},
+            {"geo_level": "country", "geo_code": "IT", "geo_name": "Italia", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "FOR", "education_level": "tertiary", "value": 15},
+        ]
+    )
+    migrant_tertiary = pd.DataFrame(
+        [
+            {"geo_level": "region", "geo_code": "ITC4", "geo_name": "Lombardia", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "FOR", "tertiary_share": 18},
+            {"geo_level": "region", "geo_code": "ITI4", "geo_name": "Lazio", "iso3": "ITA", "year": 2024, "age_label": "25-64", "sex": "T", "country_of_birth_group": "FOR", "tertiary_share": 22},
+        ]
+    )
+    tables = {"migrant_education": migrant_education, "migrant_tertiary": migrant_tertiary}
+
+    distribution = fig_migrant_education_by_birth(tables, geo_code="IT", year=2024)
+    ranking = fig_migrant_tertiary_region(tables, year=2024, limit=2)
+
+    assert len(distribution.data) == 2
+    assert "Titoli di studio per paese di nascita" in distribution.layout.title.text
+    assert list(ranking.data[0].y) == ["Lombardia", "Lazio"]
+    assert "edat_lfs_9917" in ranking.layout.annotations[0].text

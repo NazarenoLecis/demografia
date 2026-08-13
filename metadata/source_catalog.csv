@@ -20,7 +20,10 @@ Eurostat,demo_frate,EU27,year country fertility indicator,Fertility and mean age
 Eurostat,demo_gind,EU27,year country demographic component,Population balance,implemented,Normalized long and wide final tables
 Eurostat,migr_imm5prv,EU27,year age sex citizenship previous residence,Immigration profile,implemented,Enabled by migration option
 Eurostat,migr_emi4ctb,EU27,year age sex citizenship destination,Emigration profile,implemented,Enabled by migration option
+Eurostat,migr_imm1ctz,EU27,year age sex citizenship,Immigration by citizenship group,implemented,Enabled by migration option with age definition fixed to COMPLET
+Eurostat,migr_emi1ctz,EU27,year age sex citizenship,Emigration by citizenship group,implemented,Enabled by migration option with age definition fixed to COMPLET
 Eurostat,migr_pop1ctz,EU27,year age sex citizenship,Migrant stock by citizenship,implemented,Citizenship kept separate from country of birth
 Eurostat,migr_pop3ctb,EU27,year age sex country of birth,Migrant stock by country of birth,implemented,Country of birth kept separate from citizenship
+Eurostat,edat_lfs_9917,EU countries and NUTS2 regions,year age sex country of birth ISCED,Education by country of birth and region,implemented,Labour Force Survey percentages for resident private households
 World Bank,WDI,EU27 and OECD38,year country indicator,Harmonised international comparison panel,implemented,Covers the union of all EU27 and OECD38 members
 UN DESA,WPP 2024,world,year age sex country scenario,OECD extra-EU kebab charts and projections,implemented automatic,Official WPP file is downloaded automatically

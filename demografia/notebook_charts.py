@@ -24,6 +24,17 @@ TABLE_FILES = {
     "immigrant_population": "immigrant_population_age_sex",
 }
 
+OPTIONAL_TABLE_FILES = {
+    "immigration": "immigration_profile",
+    "emigration": "emigration_profile",
+    "immigration_citizenship": "immigration_citizenship_profile",
+    "emigration_citizenship": "emigration_citizenship_profile",
+    "migrant_education": "migrant_education_by_birth_region",
+    "migrant_tertiary": "migrant_tertiary_share",
+    "internal_migration_flows": "italy_internal_migration_flows",
+    "internal_migration_balances": "italy_internal_migration_balances",
+}
+
 METRICS = {
     "population_total": {"label": "Popolazione totale", "axis": "Milioni", "scale": 1_000_000},
     "share_0_14": {"label": "Quota 0-14", "axis": "% popolazione"},
@@ -65,6 +76,20 @@ EDUCATION_ORDER = {
     "upper_secondary_or_more": 60,
 }
 
+BIRTH_GROUP_LABELS = {
+    "NAT": "Nati nel paese",
+    "FOR": "Nati all'estero",
+    "EU27_2020_FOR": "Nati in altri paesi UE27",
+    "NEU27_2020_FOR": "Nati fuori UE27",
+}
+
+CITIZENSHIP_GROUP_LABELS = {
+    "NAT": "Cittadini del paese",
+    "EU27_2020_FOR": "Cittadini altri paesi UE27",
+    "NEU27_2020_FOR": "Cittadini paesi extra UE27",
+    "TOTAL": "Totale",
+}
+
 SOURCE_NOTES = {
     "population": "Fonte: Eurostat demo_pjan e proj_23np.<br>Elaborazione di Nazareno Lecis.",
     "age": "Fonte: Eurostat demo_pjan e proj_23np.<br>Elaborazione di Nazareno Lecis.",
@@ -72,10 +97,23 @@ SOURCE_NOTES = {
     "fertility": "Fonte: Eurostat demo_frate, demo_gind e demo_r_find3.<br>Elaborazione di Nazareno Lecis.",
     "balance": "Fonte: Eurostat demo_gind e demo_r_gind3.<br>Elaborazione di Nazareno Lecis.",
     "migration": "Fonte: Eurostat demo_gind e demo_r_gind3.<br>Elaborazione di Nazareno Lecis.",
+    "migration_flows": (
+        "Fonte: Eurostat migr_imm1ctz e migr_emi1ctz.<br>Elaborazione di Nazareno Lecis.<br>"
+        "Nota: flussi annuali per età, sesso e cittadinanza; la cittadinanza estera è distinta tra UE27 ed extra UE27."
+    ),
     "education": (
         "Fonte: Eurostat edat_lfse_03.<br>Elaborazione di Nazareno Lecis.<br>"
         "Nota: secondaria generale = ISCED 34/44; professionale = ISCED 35/45; "
         "ED0-2 non separa primaria e secondaria inferiore."
+    ),
+    "migrant_education": (
+        "Fonte: Eurostat edat_lfs_9917.<br>Elaborazione di Nazareno Lecis.<br>"
+        "Nota: quote LFS sulla popolazione in famiglie private per paese di nascita e regione NUTS2; "
+        "non sono flussi annui di ingresso."
+    ),
+    "internal_migration": (
+        "Fonte: ISTAT, trasferimenti di residenza quando disponibili nel registro ufficiale.<br>"
+        "Elaborazione di Nazareno Lecis."
     ),
     "life_expectancy": (
         "Fonte: Eurostat demo_mlexpec.<br>Elaborazione di Nazareno Lecis.<br>"
@@ -115,12 +153,30 @@ def load_notebook_tables(final_dir: Path | None = None) -> dict[str, pd.DataFram
         `output/data/final` is used.
     """
     base_dir = final_dir or FINAL_DIR
-    return {key: read_final_table(base_dir, filename) for key, filename in TABLE_FILES.items()}
+    tables = {key: read_final_table(base_dir, filename) for key, filename in TABLE_FILES.items()}
+    for key, filename in OPTIONAL_TABLE_FILES.items():
+        try:
+            tables[key] = read_final_table(base_dir, filename)
+        except FileNotFoundError:
+            # Optional thematic tables are generated only when the related
+            # source is enabled. Empty frames let notebooks stay runnable.
+            tables[key] = pd.DataFrame()
+    return tables
 
 
 def country_name(iso3: str) -> str:
     """Return the Italian country label used in the charts."""
     return COUNTRY_NAMES.get(str(iso3), str(iso3))
+
+
+def birth_group_label(code: str) -> str:
+    """Return a readable label for a country-of-birth group."""
+    return BIRTH_GROUP_LABELS.get(str(code), str(code))
+
+
+def citizenship_group_label(code: str) -> str:
+    """Return a readable label for a citizenship group."""
+    return CITIZENSHIP_GROUP_LABELS.get(str(code), str(code))
 
 
 def as_number(value: Any) -> float | None:
@@ -721,6 +777,277 @@ def fig_migration(
     fig.update_yaxes(title="Migliaia di persone")
     fig.update_xaxes(title="Anno")
     return apply_layout(fig, "Migrazioni e saldo", SOURCE_NOTES["migration"])
+
+
+def _migration_flow_label(flow: str) -> str:
+    """Return the chart label for a migration flow direction."""
+    return "Immigrazione" if flow == "immigration" else "Emigrazione"
+
+
+def migration_citizenship_rows(
+    tables: dict[str, pd.DataFrame],
+    flow: str = "immigration",
+    country: str = "ITA",
+    sex: str = "T",
+    year: int | None = None,
+) -> pd.DataFrame:
+    """Return migration rows by age, sex, and citizenship for one country."""
+    table_name = "immigration_citizenship" if flow == "immigration" else "emigration_citizenship"
+    rows = tables.get(table_name, pd.DataFrame())
+    if rows.empty or not {"iso3", "year", "sex", "value"}.issubset(rows.columns):
+        return pd.DataFrame(columns=rows.columns)
+    selected = rows[
+        rows["iso3"].astype(str).eq(country)
+        & rows["sex"].astype(str).str.upper().eq(sex)
+    ].copy()
+    if selected.empty:
+        return selected
+    selected_year = int(year) if year is not None else int(selected["year"].max())
+    return selected[selected["year"].astype(int).eq(selected_year)].copy()
+
+
+def _total_age_rows(rows: pd.DataFrame) -> pd.DataFrame:
+    """Keep total-age rows when the table contains both totals and age groups."""
+    if rows.empty or not {"age_low", "age_high"}.issubset(rows.columns):
+        return rows.copy()
+    total_age = rows["age_low"].isna() & rows["age_high"].isna()
+    return rows[total_age].copy() if total_age.any() else rows.copy()
+
+
+def _migration_year(tables: dict[str, pd.DataFrame], flow: str, country: str, sex: str, year: int | None) -> int | None:
+    """Return the selected year or the latest available year for a flow."""
+    if year is not None:
+        return int(year)
+    rows = migration_citizenship_rows(tables, flow=flow, country=country, sex=sex, year=None)
+    if rows.empty:
+        return None
+    return int(rows["year"].max())
+
+
+def fig_migration_age_profile(
+    tables: dict[str, pd.DataFrame],
+    flow: str = "immigration",
+    country: str = "ITA",
+    compare: str = "ESP",
+    sex: str = "T",
+    year: int | None = None,
+) -> go.Figure:
+    """Draw the age profile of immigration or emigration flows."""
+    selected_year = _migration_year(tables, flow, country, sex, year)
+    title_year = selected_year if selected_year is not None else "ND"
+    fig = go.Figure()
+    for iso3, dash in ((country, "solid"), (compare, "dash")):
+        if iso3 == "none" or selected_year is None:
+            continue
+        rows = migration_citizenship_rows(tables, flow=flow, country=iso3, sex=sex, year=selected_year)
+        if rows.empty or "citizenship" not in rows:
+            continue
+        if rows["citizenship"].astype(str).eq("TOTAL").any():
+            rows = rows[rows["citizenship"].astype(str).eq("TOTAL")].copy()
+        rows = rows[rows["age_low"].notna()].copy()
+        if rows.empty:
+            continue
+        rows["age_label_plot"] = rows.apply(age_label, axis=1)
+        profile = rows.groupby(["age_low", "age_label_plot"], as_index=False)["value"].sum().sort_values("age_low")
+        fig.add_scatter(
+            x=profile["age_label_plot"],
+            y=profile["value"] / 1_000,
+            mode="lines+markers",
+            name=country_name(iso3),
+            line={"dash": dash},
+        )
+    fig.update_yaxes(title="Migliaia di persone")
+    fig.update_xaxes(title="Età")
+    title = f"{_migration_flow_label(flow)} per età - {title_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migration_flows"], 620)
+
+
+def fig_migration_citizenship_profile(
+    tables: dict[str, pd.DataFrame],
+    flow: str = "immigration",
+    country: str = "ITA",
+    compare: str = "ESP",
+    sex: str = "T",
+    year: int | None = None,
+) -> go.Figure:
+    """Draw migration flows by citizenship group for one or two countries."""
+    selected_year = _migration_year(tables, flow, country, sex, year)
+    title_year = selected_year if selected_year is not None else "ND"
+    order = ["NAT", "EU27_2020_FOR", "NEU27_2020_FOR"]
+    fig = go.Figure()
+    for iso3 in (country, compare):
+        if iso3 == "none" or selected_year is None:
+            continue
+        rows = migration_citizenship_rows(tables, flow=flow, country=iso3, sex=sex, year=selected_year)
+        rows = _total_age_rows(rows)
+        rows = rows[rows["citizenship"].astype(str).isin(order)].copy() if "citizenship" in rows else rows
+        if rows.empty:
+            continue
+        grouped = rows.groupby("citizenship", as_index=False)["value"].sum()
+        values = grouped.set_index("citizenship")["value"].to_dict()
+        fig.add_bar(
+            x=[citizenship_group_label(code) for code in order],
+            y=[values.get(code) / 1_000 if values.get(code) is not None else None for code in order],
+            name=country_name(iso3),
+        )
+    fig.update_yaxes(title="Migliaia di persone")
+    fig.update_xaxes(title="Cittadinanza")
+    title = f"{_migration_flow_label(flow)} per cittadinanza - {title_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migration_flows"], 620)
+
+
+def fig_migrant_education_by_birth(
+    tables: dict[str, pd.DataFrame],
+    geo_code: str = "IT",
+    age_label_value: str = "25-64",
+    sex: str = "T",
+    year: int | None = None,
+) -> go.Figure:
+    """Draw education distribution by country-of-birth group."""
+    rows = tables.get("migrant_education", pd.DataFrame())
+    if rows.empty:
+        return apply_layout(go.Figure(), "Titoli di studio per paese di nascita", SOURCE_NOTES["migrant_education"], 620)
+    selected = rows[
+        rows["geo_code"].astype(str).eq(geo_code)
+        & rows["age_label"].astype(str).eq(age_label_value)
+        & rows["sex"].astype(str).str.upper().eq(sex)
+    ].copy()
+    if selected.empty:
+        return apply_layout(go.Figure(), "Titoli di studio per paese di nascita", SOURCE_NOTES["migrant_education"], 620)
+    selected_year = int(year) if year is not None else int(selected["year"].max())
+    selected = education_display_rows(selected[selected["year"].astype(int).eq(selected_year)])
+    birth_order = [code for code in ("NAT", "FOR", "EU27_2020_FOR", "NEU27_2020_FOR") if code in set(selected["country_of_birth_group"])]
+    levels = sorted(selected["education_level"].dropna().unique(), key=lambda level: EDUCATION_ORDER.get(level, 999))
+    fig = go.Figure()
+    for birth_group in birth_order:
+        data = selected[selected["country_of_birth_group"].astype(str).eq(birth_group)]
+        values = data.groupby("education_level")["value"].sum().to_dict()
+        fig.add_bar(
+            x=[EDUCATION_LABELS.get(level, level) for level in levels],
+            y=[values.get(level) for level in levels],
+            name=birth_group_label(birth_group),
+        )
+    geo_name = selected["geo_name"].dropna().iloc[0] if not selected.empty else geo_code
+    if not selected.empty and selected["geo_level"].astype(str).eq("country").any():
+        geo_name = country_name(str(selected["iso3"].dropna().iloc[0]))
+    fig.update_yaxes(title="% popolazione")
+    fig.update_xaxes(title="Livello di istruzione")
+    title = f"Titoli di studio per paese di nascita - {geo_name}, {age_label_value}, {selected_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migrant_education"], 660)
+
+
+def _migrant_tertiary_rows(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Return tertiary-share rows, deriving them from the full table if needed."""
+    tertiary = tables.get("migrant_tertiary", pd.DataFrame())
+    if not tertiary.empty:
+        return tertiary.copy()
+    education = tables.get("migrant_education", pd.DataFrame())
+    if education.empty or "education_level" not in education:
+        return pd.DataFrame()
+    result = education[education["education_level"].astype(str).eq("tertiary")].copy()
+    return result.rename(columns={"value": "tertiary_share"})
+
+
+def fig_migrant_tertiary_region(
+    tables: dict[str, pd.DataFrame],
+    country: str = "ITA",
+    birth_group: str = "FOR",
+    age_label_value: str = "25-64",
+    sex: str = "T",
+    year: int | None = None,
+    limit: int = 21,
+) -> go.Figure:
+    """Rank NUTS2 regions by tertiary-education share among a birth group."""
+    rows = _migrant_tertiary_rows(tables)
+    if rows.empty:
+        return apply_layout(go.Figure(), "Laureati per regione e paese di nascita", SOURCE_NOTES["migrant_education"], 760)
+    selected = rows[
+        rows["iso3"].astype(str).eq(country)
+        & rows["geo_level"].astype(str).eq("region")
+        & rows["country_of_birth_group"].astype(str).eq(birth_group)
+        & rows["age_label"].astype(str).eq(age_label_value)
+        & rows["sex"].astype(str).str.upper().eq(sex)
+    ].copy()
+    if selected.empty:
+        return apply_layout(go.Figure(), "Laureati per regione e paese di nascita", SOURCE_NOTES["migrant_education"], 760)
+    selected_year = int(year) if year is not None else int(selected["year"].max())
+    selected = selected[selected["year"].astype(int).eq(selected_year)].sort_values("tertiary_share")
+    selected = selected.tail(limit)
+    fig = go.Figure(
+        go.Bar(
+            x=selected["tertiary_share"],
+            y=selected["geo_name"],
+            orientation="h",
+            name=birth_group_label(birth_group),
+        )
+    )
+    fig.update_xaxes(title="% popolazione")
+    fig.update_yaxes(title="")
+    title = f"Laureati tra {birth_group_label(birth_group).lower()} - regioni, {age_label_value}, {selected_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migrant_education"], 760)
+
+
+def fig_migration_destination_rank(
+    tables: dict[str, pd.DataFrame],
+    level: str = "region",
+    metric: str = "immigration",
+    year: int | None = None,
+    limit: int = 25,
+) -> go.Figure:
+    """Rank regions or provinces by migration component from demographic balance."""
+    territories = regional_options(tables, level)
+    rows = []
+    for _, territory in territories.iterrows():
+        data = metric_rows(tables, f"{level}:{territory['geo_code']}", metric)
+        if data.empty:
+            continue
+        selected_year = int(year) if year is not None else int(data["year"].max())
+        selected = data[data["year"].astype(int).eq(selected_year)]
+        if not selected.empty and pd.notna(selected.iloc[0]["metric_value"]):
+            rows.append({"geo_name": territory["geo_name"], "value": selected.iloc[0]["metric_value"], "year": selected_year})
+    table = pd.DataFrame(rows)
+    if table.empty:
+        title = f"Territori per {METRICS[metric]['label'].lower()}"
+        return apply_layout(go.Figure(), title, SOURCE_NOTES["migration"], 760)
+    table = table.sort_values("value", ascending=True).tail(limit)
+    fig = go.Figure(go.Bar(x=scaled_series(table["value"], metric), y=table["geo_name"], orientation="h", name=METRICS[metric]["label"]))
+    fig.update_xaxes(title=METRICS[metric]["axis"])
+    fig.update_yaxes(title="")
+    title_year = int(table["year"].max()) if not table.empty else year
+    title = f"Territori per {METRICS[metric]['label'].lower()} - {title_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["migration"], 760)
+
+
+def fig_internal_migration_destinations(
+    tables: dict[str, pd.DataFrame],
+    year: int | None = None,
+    origin_code: str | None = None,
+    limit: int = 30,
+) -> go.Figure:
+    """Rank destinations in the optional ISTAT origin-destination table."""
+    flows = tables.get("internal_migration_flows", pd.DataFrame())
+    if flows.empty:
+        return apply_layout(go.Figure(), "Migrazioni interne per destinazione", SOURCE_NOTES["internal_migration"], 760)
+    selected_year = int(year) if year is not None else int(flows["year"].max())
+    rows = flows[flows["year"].astype(int).eq(selected_year)].copy()
+    if origin_code is not None:
+        rows = rows[rows["origin_code"].astype(str).str.startswith(str(origin_code))]
+    if "sex" in rows and rows["sex"].astype(str).eq("T").any():
+        rows = rows[rows["sex"].astype(str).eq("T")]
+    if {"age_low", "age_high"}.issubset(rows.columns):
+        total_age = rows["age_low"].isna() & rows["age_high"].isna()
+        if total_age.any():
+            rows = rows[total_age]
+    grouped = rows.groupby("destination_code", as_index=False)["value"].sum().sort_values("value").tail(limit)
+    name_frames = [regional_options(tables, "region"), regional_options(tables, "province")]
+    names = pd.concat(name_frames, ignore_index=True) if name_frames else pd.DataFrame()
+    name_map = names.set_index("geo_code")["geo_name"].to_dict() if not names.empty else {}
+    grouped["destination_name"] = grouped["destination_code"].map(name_map).fillna(grouped["destination_code"])
+    fig = go.Figure(go.Bar(x=grouped["value"] / 1_000, y=grouped["destination_name"], orientation="h", name="Arrivi interni"))
+    fig.update_xaxes(title="Migliaia di persone")
+    fig.update_yaxes(title="")
+    title = f"Migrazioni interne per destinazione - {selected_year}"
+    return apply_layout(fig, title, SOURCE_NOTES["internal_migration"], 760)
 
 
 def education_display_rows(rows: pd.DataFrame) -> pd.DataFrame:

@@ -356,8 +356,8 @@ def normalize_eurostat_life_expectancy(
 
     The output keeps `age_code` and `sex` visible because life expectancy at
     birth and remaining life expectancy at 65 answer different questions, and
-    the dashboard can expose total, male, or female values without recomputing
-    the Eurostat measure.
+    notebooks and analyses can select total, male, or female values without
+    recomputing the Eurostat measure.
     """
     columns = [
         "source",
@@ -468,6 +468,81 @@ def normalize_eurostat_education_attainment(
     return result[columns].dropna(subset=["iso3", "year", "value"])
 
 
+def normalize_eurostat_migrant_education(
+    frame: pd.DataFrame,
+    extraction_date: str | None = None,
+) -> pd.DataFrame:
+    """Normalize education shares by country of birth and NUTS2 region.
+
+    Eurostat `edat_lfs_9917` is a Labour Force Survey percentage table. It is
+    useful for comparing education profiles of native-born and foreign-born
+    residents by region, but it is not a register count of migration flows.
+    """
+    columns = [
+        "source",
+        "dataset",
+        "extraction_date",
+        "geo_level",
+        "geo_code",
+        "geo_name",
+        "iso3",
+        "year",
+        "age_low",
+        "age_high",
+        "age_label",
+        "sex",
+        "country_of_birth_group",
+        "country_of_birth_group_label",
+        "education_level_code",
+        "education_level",
+        "education_level_label",
+        "unit",
+        "value",
+        "status_flag",
+    ]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    geo_col = _first_existing(frame.columns, ("geo", "geo_label"))
+    year_col = _first_existing(frame.columns, ("time", "TIME_PERIOD", "year"))
+    education_col = _first_existing(frame.columns, ("isced11", "education_level"))
+    birth_col = _first_existing(frame.columns, ("c_birth", "country_of_birth"))
+    age_col = _first_existing(frame.columns, ("age", "age_label"))
+    if not geo_col or not year_col or not education_col or not birth_col or not age_col or "value" not in frame:
+        raise ValueError("Dimensioni Eurostat insufficienti per istruzione e paese di nascita")
+
+    result = pd.DataFrame(index=frame.index)
+    result["source"] = "Eurostat"
+    result["dataset"] = frame.get("dataset", "edat_lfs_9917")
+    result["extraction_date"] = extraction_date or date.today().isoformat()
+    metadata = _eurostat_geo_metadata(frame, geo_col)
+    result["geo_level"] = metadata["geo_level"]
+    result["geo_code"] = metadata["geo_code"]
+    result["geo_name"] = metadata["geo_name"]
+    result["iso3"] = metadata["iso3"]
+    result["year"] = _as_year(frame[year_col])
+    result["age_low"], result["age_high"], result["age_label"] = _age_columns(frame[age_col])
+    result["sex"] = frame.get("sex", "T").astype(str).str.upper() if "sex" in frame else "T"
+    result["country_of_birth_group"] = frame[birth_col].astype(str)
+    label_col = f"{birth_col}_label"
+    result["country_of_birth_group_label"] = (
+        frame[label_col].astype(str) if label_col in frame else result["country_of_birth_group"]
+    )
+    result["education_level_code"] = frame[education_col].astype(str)
+    education_label_col = f"{education_col}_label"
+    result["education_level_label"] = (
+        frame[education_label_col].astype(str)
+        if education_label_col in frame
+        else result["education_level_code"]
+    )
+    result["education_level"] = result["education_level_code"].map(EDUCATION_LEVEL_MAP).fillna(
+        result["education_level_code"].str.lower()
+    )
+    result["unit"] = frame.get("unit", "PC").astype(str) if "unit" in frame else "PC"
+    result["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    result["status_flag"] = frame.get("status_flag", pd.Series(pd.NA, index=frame.index))
+    return result[columns].dropna(subset=["geo_code", "year", "value"])
+
+
 def normalize_eurostat_migration(
     frame: pd.DataFrame,
     flow: str,
@@ -524,11 +599,31 @@ def normalize_eurostat_migration(
     return result[core].dropna(subset=["iso3", "year", "value"])
 
 
+def _prefer_total_migration_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    """Reduce detailed migration rows to one total profile where possible."""
+    selected = frame.copy()
+    if {"age_low", "age_high"}.issubset(selected.columns):
+        total_age = selected["age_low"].isna() & selected["age_high"].isna()
+        if total_age.any():
+            selected = selected[total_age].copy()
+    if "sex" in selected:
+        total_sex = selected["sex"].astype(str).str.upper().eq("T")
+        if total_sex.any():
+            selected = selected[total_sex].copy()
+    for column in ("citizenship", "country_of_birth", "partner_country"):
+        if column not in selected:
+            continue
+        values = selected[column].astype(str).str.upper()
+        if values.eq("TOTAL").any():
+            selected = selected[values.eq("TOTAL")].copy()
+    return selected
+
+
 def build_migration_summary(*frames: pd.DataFrame) -> pd.DataFrame:
     valid = [frame for frame in frames if frame is not None and not frame.empty]
     if not valid:
         return pd.DataFrame(columns=["iso3", "year", "immigration", "emigration", "net_migration"])
-    combined = pd.concat(valid, ignore_index=True)
+    combined = pd.concat([_prefer_total_migration_rows(frame) for frame in valid], ignore_index=True)
     totals = combined.groupby(["iso3", "year", "flow"], as_index=False)["value"].sum()
     wide = totals.pivot_table(index=["iso3", "year"], columns="flow", values="value", aggfunc="sum").reset_index()
     wide.columns.name = None
@@ -537,6 +632,34 @@ def build_migration_summary(*frames: pd.DataFrame) -> pd.DataFrame:
             wide[column] = 0.0
     wide["net_migration"] = wide["immigration"] - wide["emigration"]
     return wide
+
+
+def build_migrant_tertiary_share(education: pd.DataFrame) -> pd.DataFrame:
+    """Extract the tertiary-education percentage by birth group and territory."""
+    columns = [
+        "source",
+        "dataset",
+        "extraction_date",
+        "geo_level",
+        "geo_code",
+        "geo_name",
+        "iso3",
+        "year",
+        "age_low",
+        "age_high",
+        "age_label",
+        "sex",
+        "country_of_birth_group",
+        "country_of_birth_group_label",
+        "unit",
+        "tertiary_share",
+        "status_flag",
+    ]
+    if education.empty:
+        return pd.DataFrame(columns=columns)
+    result = education[education["education_level"].astype(str).eq("tertiary")].copy()
+    result = result.rename(columns={"value": "tertiary_share"})
+    return result[columns].dropna(subset=["geo_code", "year", "tertiary_share"])
 
 
 def normalize_migrant_stock(

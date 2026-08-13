@@ -14,13 +14,20 @@ from demografia.config import (
     EU_OECD_ISO3,
     FINAL_DIR,
     INPUT_DIR,
+    MIGRANT_EDUCATION_AGE_GROUPS,
+    MIGRANT_EDUCATION_BIRTH_GROUPS,
+    MIGRANT_EDUCATION_GEOS,
+    MIGRANT_EDUCATION_LEVELS,
     MIGRANT_STOCK_AGE_GROUPS,
+    MIGRATION_FLOW_AGE_GROUPS,
+    MIGRATION_FLOW_CITIZENSHIP_GROUPS,
     OECD38_ISO3,
     RAW_DIR,
     ensure_directories,
 )
 from demografia.final_tables import (
     build_demographic_balance_wide,
+    build_migrant_tertiary_share,
     add_eurostat_geo_metadata,
     build_migration_summary,
     enrich_population_schema,
@@ -29,6 +36,7 @@ from demografia.final_tables import (
     normalize_eurostat_fertility,
     normalize_eurostat_life_expectancy,
     normalize_eurostat_migration,
+    normalize_eurostat_migrant_education,
     normalize_eurostat_regional_population,
     normalize_migrant_stock,
     projection_inventory,
@@ -63,8 +71,14 @@ DEFAULT_PIPELINE_OPTIONS: dict[str, Any] = {
     "regional_levels": ("nuts2", "nuts3"),
     "regional_geos": None,
     "migration_geos": None,
+    "migration_citizenship_ages": MIGRATION_FLOW_AGE_GROUPS,
+    "migration_citizenship_groups": MIGRATION_FLOW_CITIZENSHIP_GROUPS,
     "immigrant_population_ages": MIGRANT_STOCK_AGE_GROUPS,
     "immigrant_population_category": "FOR",
+    "migrant_education_geos": MIGRANT_EDUCATION_GEOS,
+    "migrant_education_ages": MIGRANT_EDUCATION_AGE_GROUPS,
+    "migrant_education_birth_groups": MIGRANT_EDUCATION_BIRTH_GROUPS,
+    "migrant_education_levels": MIGRANT_EDUCATION_LEVELS,
     "comparison_countries": EU_OECD_ISO3,
     "projection_scenario": None,
     "generate_all_country_kebabs": False,
@@ -86,7 +100,13 @@ def pipeline_options(**overrides: Any) -> dict[str, Any]:
     if options["regional_geos"] is not None:
         options["regional_geos"] = tuple(options["regional_geos"])
     options["migration_geos"] = tuple(options["migration_geos"] or options["eu_geos"])
+    options["migration_citizenship_ages"] = tuple(options["migration_citizenship_ages"])
+    options["migration_citizenship_groups"] = tuple(options["migration_citizenship_groups"])
     options["immigrant_population_ages"] = tuple(options["immigrant_population_ages"])
+    options["migrant_education_geos"] = tuple(options["migrant_education_geos"])
+    options["migrant_education_ages"] = tuple(options["migrant_education_ages"])
+    options["migrant_education_birth_groups"] = tuple(options["migrant_education_birth_groups"])
+    options["migrant_education_levels"] = tuple(options["migrant_education_levels"])
     options["comparison_countries"] = tuple(options["comparison_countries"])
     return options
 
@@ -188,6 +208,24 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
             end_year=options["end_year"],
             refresh=options["refresh"],
         )
+        immigration_citizenship_raw = eurostat.migration_citizenship_flows(
+            "immigration_citizenship",
+            geos=options["migration_geos"],
+            start_year=migration_start_year,
+            end_year=options["end_year"],
+            ages=options["migration_citizenship_ages"],
+            citizenships=options["migration_citizenship_groups"],
+            refresh=options["refresh"],
+        )
+        emigration_citizenship_raw = eurostat.migration_citizenship_flows(
+            "emigration_citizenship",
+            geos=options["migration_geos"],
+            start_year=migration_start_year,
+            end_year=options["end_year"],
+            ages=options["migration_citizenship_ages"],
+            citizenships=options["migration_citizenship_groups"],
+            refresh=options["refresh"],
+        )
         citizenship_raw = eurostat.migrant_stock(
             "population_citizenship",
             geos=options["migration_geos"],
@@ -212,26 +250,54 @@ def run_pipeline(options: Mapping[str, Any] | None = None) -> dict[str, Path]:
             categories=(options["immigrant_population_category"],),
             refresh=options["refresh"],
         )
+        migrant_education_raw = eurostat.migrant_education_by_birth_region(
+            geos=options["migrant_education_geos"],
+            start_year=max(2006, options["start_year"]),
+            end_year=options["end_year"],
+            ages=options["migrant_education_ages"],
+            birth_groups=options["migrant_education_birth_groups"],
+            education_levels=options["migrant_education_levels"],
+            refresh=options["refresh"],
+        )
         save_table(immigration_raw, RAW_DIR / "eurostat_immigration_profile.parquet")
         save_table(emigration_raw, RAW_DIR / "eurostat_emigration_profile.parquet")
+        save_table(immigration_citizenship_raw, RAW_DIR / "eurostat_immigration_citizenship_profile.parquet")
+        save_table(emigration_citizenship_raw, RAW_DIR / "eurostat_emigration_citizenship_profile.parquet")
         save_table(citizenship_raw, RAW_DIR / "eurostat_population_by_citizenship.parquet")
         save_table(birth_country_raw, RAW_DIR / "eurostat_population_by_birth_country.parquet")
         save_table(immigrant_population_raw, RAW_DIR / "eurostat_immigrant_population_age_sex.parquet")
+        save_table(migrant_education_raw, RAW_DIR / "eurostat_migrant_education_birth_region.parquet")
 
         immigration = normalize_eurostat_migration(immigration_raw, "immigration")
         emigration = normalize_eurostat_migration(emigration_raw, "emigration")
+        immigration_citizenship = normalize_eurostat_migration(immigration_citizenship_raw, "immigration")
+        emigration_citizenship = normalize_eurostat_migration(emigration_citizenship_raw, "emigration")
         migration_summary = build_migration_summary(immigration, emigration)
         citizenship = normalize_migrant_stock(citizenship_raw, "citizenship")
         birth_country = normalize_migrant_stock(birth_country_raw, "country_of_birth")
         immigrant_population = normalize_migrant_stock(immigrant_population_raw, "country_of_birth")
+        migrant_education = normalize_eurostat_migrant_education(migrant_education_raw)
+        migrant_tertiary = build_migrant_tertiary_share(migrant_education)
         save_table(immigration, FINAL_DIR / "immigration_profile.parquet")
         save_table(emigration, FINAL_DIR / "emigration_profile.parquet")
+        save_table(immigration_citizenship, FINAL_DIR / "immigration_citizenship_profile.parquet")
+        save_table(emigration_citizenship, FINAL_DIR / "emigration_citizenship_profile.parquet")
         save_table(migration_summary, FINAL_DIR / "migration_summary.parquet")
         save_table(citizenship, FINAL_DIR / "population_by_citizenship.parquet")
         save_table(birth_country, FINAL_DIR / "population_by_country_of_birth.parquet")
         save_table(immigrant_population, FINAL_DIR / "immigrant_population_age_sex.parquet")
+        save_table(migrant_education, FINAL_DIR / "migrant_education_by_birth_region.parquet")
+        save_table(migrant_tertiary, FINAL_DIR / "migrant_tertiary_share.parquet")
+        outputs["immigration_profile"] = FINAL_DIR / "immigration_profile.parquet"
+        outputs["emigration_profile"] = FINAL_DIR / "emigration_profile.parquet"
+        outputs["immigration_citizenship_profile"] = FINAL_DIR / "immigration_citizenship_profile.parquet"
+        outputs["emigration_citizenship_profile"] = FINAL_DIR / "emigration_citizenship_profile.parquet"
         outputs["migration_summary"] = FINAL_DIR / "migration_summary.parquet"
+        outputs["population_by_citizenship"] = FINAL_DIR / "population_by_citizenship.parquet"
+        outputs["population_by_country_of_birth"] = FINAL_DIR / "population_by_country_of_birth.parquet"
         outputs["immigrant_population_age_sex"] = FINAL_DIR / "immigrant_population_age_sex.parquet"
+        outputs["migrant_education_by_birth_region"] = FINAL_DIR / "migrant_education_by_birth_region.parquet"
+        outputs["migrant_tertiary_share"] = FINAL_DIR / "migrant_tertiary_share.parquet"
 
     # Population rows are standardized before age-structure indicators are
     # calculated. This avoids hiding source/scenario differences downstream.

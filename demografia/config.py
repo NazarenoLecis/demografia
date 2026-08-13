@@ -90,9 +90,12 @@ EUROSTAT_DATASETS = {
     "life_expectancy": "demo_mlexpec",
     "immigration_profile": "migr_imm5prv",
     "emigration_profile": "migr_emi4ctb",
+    "immigration_citizenship": "migr_imm1ctz",
+    "emigration_citizenship": "migr_emi1ctz",
     "population_citizenship": "migr_pop1ctz",
     "population_birth_country": "migr_pop3ctb",
     "education_attainment": "edat_lfse_03",
+    "migrant_education_birth_region": "edat_lfs_9917",
 }
 
 EDUCATION_ATTAINMENT_AGE_GROUPS = ("Y15-64", "Y25-64", "Y25-34", "Y35-44", "Y45-54", "Y55-64")
@@ -117,6 +120,35 @@ MIGRANT_STOCK_AGE_GROUPS = (
     "Y80-84",
     "Y_GE85",
 )
+
+MIGRATION_FLOW_AGE_GROUPS = ("TOTAL", *MIGRANT_STOCK_AGE_GROUPS)
+
+MIGRATION_FLOW_CITIZENSHIP_GROUPS = (
+    "TOTAL",
+    "NAT",
+    "EU27_2020_FOR",
+    "NEU27_2020_FOR",
+)
+
+MIGRANT_EDUCATION_GEOS = ("IT", *ITALY_NUTS2)
+
+MIGRANT_EDUCATION_AGE_GROUPS = (
+    "Y15-64",
+    "Y25-64",
+    "Y25-34",
+    "Y35-44",
+    "Y45-54",
+    "Y55-64",
+)
+
+MIGRANT_EDUCATION_BIRTH_GROUPS = (
+    "NAT",
+    "FOR",
+    "EU27_2020_FOR",
+    "NEU27_2020_FOR",
+)
+
+MIGRANT_EDUCATION_LEVELS = ("ED0-2", "ED3_4", "ED5-8")
 
 
 def ensure_directories() -> None:

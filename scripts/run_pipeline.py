@@ -8,7 +8,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from demografia.pipeline import pipeline_options, run_pipeline
-from demografia.config import EU27_ISO2, EU_OECD_ISO3, MIGRANT_STOCK_AGE_GROUPS
+from demografia.config import (
+    EU27_ISO2,
+    EU_OECD_ISO3,
+    MIGRANT_EDUCATION_AGE_GROUPS,
+    MIGRANT_EDUCATION_BIRTH_GROUPS,
+    MIGRANT_EDUCATION_GEOS,
+    MIGRANT_EDUCATION_LEVELS,
+    MIGRANT_STOCK_AGE_GROUPS,
+    MIGRATION_FLOW_AGE_GROUPS,
+    MIGRATION_FLOW_CITIZENSHIP_GROUPS,
+)
 from demografia.utils import print_outputs
 
 
@@ -33,8 +43,14 @@ REGIONAL_COUNTRY_PREFIX = "IT"
 REGIONAL_LEVELS = ("nuts2", "nuts3")
 REGIONAL_GEOS: tuple[str, ...] | None = None
 MIGRATION_GEOS = EU27_ISO2
+MIGRATION_CITIZENSHIP_AGES = MIGRATION_FLOW_AGE_GROUPS
+MIGRATION_CITIZENSHIP_GROUPS = MIGRATION_FLOW_CITIZENSHIP_GROUPS
 IMMIGRANT_POPULATION_AGES = MIGRANT_STOCK_AGE_GROUPS
 IMMIGRANT_POPULATION_CATEGORY = "FOR"
+MIGRANT_EDUCATION_GEOS_SELECTED = MIGRANT_EDUCATION_GEOS
+MIGRANT_EDUCATION_AGES = MIGRANT_EDUCATION_AGE_GROUPS
+MIGRANT_EDUCATION_BIRTH_GROUPS_SELECTED = MIGRANT_EDUCATION_BIRTH_GROUPS
+MIGRANT_EDUCATION_LEVELS_SELECTED = MIGRANT_EDUCATION_LEVELS
 COMPARISON_COUNTRIES = EU_OECD_ISO3
 PROJECTION_SCENARIO: str | None = "BSL"
 GENERATE_ALL_COUNTRY_KEBABS = False
@@ -60,8 +76,14 @@ def main(
     regional_levels: tuple[str, ...] = REGIONAL_LEVELS,
     regional_geos: tuple[str, ...] | None = REGIONAL_GEOS,
     migration_geos: tuple[str, ...] = MIGRATION_GEOS,
+    migration_citizenship_ages: tuple[str, ...] = MIGRATION_CITIZENSHIP_AGES,
+    migration_citizenship_groups: tuple[str, ...] = MIGRATION_CITIZENSHIP_GROUPS,
     immigrant_population_ages: tuple[str, ...] = IMMIGRANT_POPULATION_AGES,
     immigrant_population_category: str = IMMIGRANT_POPULATION_CATEGORY,
+    migrant_education_geos: tuple[str, ...] = MIGRANT_EDUCATION_GEOS_SELECTED,
+    migrant_education_ages: tuple[str, ...] = MIGRANT_EDUCATION_AGES,
+    migrant_education_birth_groups: tuple[str, ...] = MIGRANT_EDUCATION_BIRTH_GROUPS_SELECTED,
+    migrant_education_levels: tuple[str, ...] = MIGRANT_EDUCATION_LEVELS_SELECTED,
     comparison_countries: tuple[str, ...] = COMPARISON_COUNTRIES,
     projection_scenario: str | None = PROJECTION_SCENARIO,
     generate_all_country_kebabs: bool = GENERATE_ALL_COUNTRY_KEBABS,
@@ -91,8 +113,14 @@ def main(
         regional_levels=regional_levels,
         regional_geos=regional_geos,
         migration_geos=migration_geos,
+        migration_citizenship_ages=migration_citizenship_ages,
+        migration_citizenship_groups=migration_citizenship_groups,
         immigrant_population_ages=immigrant_population_ages,
         immigrant_population_category=immigrant_population_category,
+        migrant_education_geos=migrant_education_geos,
+        migrant_education_ages=migrant_education_ages,
+        migrant_education_birth_groups=migrant_education_birth_groups,
+        migrant_education_levels=migrant_education_levels,
         comparison_countries=comparison_countries,
         projection_scenario=projection_scenario,
         generate_all_country_kebabs=generate_all_country_kebabs,

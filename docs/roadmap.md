@@ -81,6 +81,8 @@ Output proposti:
 - `students_enrolment`;
 - `education_by_citizenship_birth_country`.
 
+Stato: `migrant_education_by_birth_region` e `migrant_tertiary_share` coprono quote LFS per paese di nascita e regione NUTS2. Restano fuori i flussi annui per titolo di studio, che richiedono una fonte diversa o stime dedicate.
+
 Fonti candidate:
 
 - Eurostat LFS;

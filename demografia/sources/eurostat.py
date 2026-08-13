@@ -11,6 +11,12 @@ from demografia.config import (
     EU27_ISO2,
     EUROSTAT_DATASETS,
     ITALY_NUTS2,
+    MIGRANT_EDUCATION_AGE_GROUPS,
+    MIGRANT_EDUCATION_BIRTH_GROUPS,
+    MIGRANT_EDUCATION_GEOS,
+    MIGRANT_EDUCATION_LEVELS,
+    MIGRATION_FLOW_AGE_GROUPS,
+    MIGRATION_FLOW_CITIZENSHIP_GROUPS,
 )
 from demografia.http import get_json
 from demografia.jsonstat import jsonstat_to_frame
@@ -313,6 +319,43 @@ def migration_flows(
     )
 
 
+def migration_citizenship_flows(
+    kind: str,
+    geos: Iterable[str] = EU27_ISO2,
+    start_year: int = 2008,
+    end_year: int | None = None,
+    ages: Iterable[str] = MIGRATION_FLOW_AGE_GROUPS,
+    sexes: Iterable[str] = ("T", "M", "F"),
+    citizenships: Iterable[str] = MIGRATION_FLOW_CITIZENSHIP_GROUPS,
+    age_definition: str = "COMPLET",
+    refresh: bool = False,
+    chunk_size: int = 5,
+) -> pd.DataFrame:
+    """Fetch migration flows by age, sex, and citizenship group.
+
+    Eurostat exposes age definitions as a separate dimension. Keeping one
+    `agedef` value in the request prevents duplicated rows for the same country,
+    year, age, sex, and citizenship group.
+    """
+    if kind not in {"immigration_citizenship", "emigration_citizenship"}:
+        raise ValueError("kind deve essere immigration_citizenship o emigration_citizenship")
+    return fetch(
+        EUROSTAT_DATASETS[kind],
+        filters={
+            "geo": tuple(geos),
+            "unit": "NR",
+            "age": tuple(ages),
+            "sex": tuple(sexes),
+            "citizen": tuple(citizenships),
+            "agedef": age_definition,
+        },
+        start_year=start_year,
+        end_year=end_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
 def migrant_stock(
     dimension: str,
     geos: Iterable[str] = EU27_ISO2,
@@ -338,6 +381,39 @@ def migrant_stock(
         EUROSTAT_DATASETS[dimension],
         filters=filters,
         start_year=start_year,
+        refresh=refresh,
+        chunk_size=chunk_size,
+    )
+
+
+def migrant_education_by_birth_region(
+    geos: Iterable[str] = MIGRANT_EDUCATION_GEOS,
+    start_year: int = 2006,
+    end_year: int | None = None,
+    ages: Iterable[str] = MIGRANT_EDUCATION_AGE_GROUPS,
+    sexes: Iterable[str] = ("T", "M", "F"),
+    birth_groups: Iterable[str] = MIGRANT_EDUCATION_BIRTH_GROUPS,
+    education_levels: Iterable[str] = MIGRANT_EDUCATION_LEVELS,
+    refresh: bool = False,
+    chunk_size: int = 20,
+) -> pd.DataFrame:
+    """Fetch education shares by country of birth and NUTS2 region.
+
+    The source is an LFS percentage table. It is therefore a profile of the
+    resident population in private households, not a count of migration flows.
+    """
+    return fetch(
+        EUROSTAT_DATASETS["migrant_education_birth_region"],
+        filters={
+            "geo": tuple(geos),
+            "unit": "PC",
+            "age": tuple(ages),
+            "sex": tuple(sexes),
+            "c_birth": tuple(birth_groups),
+            "isced11": tuple(education_levels),
+        },
+        start_year=start_year,
+        end_year=end_year,
         refresh=refresh,
         chunk_size=chunk_size,
     )
