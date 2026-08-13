@@ -18,6 +18,8 @@ La dipendenza demografica e distinta dalla dipendenza economica. La prima usa fa
 
 Cittadinanza e paese di nascita restano variabili separate. I flussi internazionali, la mobilita interna e lo stock di residenti stranieri o nati all'estero non sono intercambiabili.
 
+Il sottoinsieme "nati in Italia senza cittadinanza italiana" richiede l'incrocio tra cittadinanza e paese di nascita. Le tavole aperte Eurostat e ISTAT usate dal repository pubblicano queste due dimensioni come distribuzioni separate; ISTAT segnala che l'incrocio puo essere richiesto come elaborazione personalizzata. Per questo il repository mostra i margini per cittadinanza e paese di nascita, ma non stima quel sottoinsieme per differenza.
+
 ## Titoli Di Studio
 
 La distribuzione per titolo di studio usa Eurostat LFS (`edat_lfse_03`). Le quote sono salvate per paese, anno, sesso, fascia di eta e livello ISCED 2011. La tabella non viene convertita automaticamente in conteggi assoluti, per evitare di mescolare stime campionarie e popolazione anagrafica senza un passaggio esplicito di ponderazione.
